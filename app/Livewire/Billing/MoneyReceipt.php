@@ -5,6 +5,7 @@ namespace App\Livewire\Billing;
 use App\Services\DcmClient;
 use App\Support\ResellerPermissionHelper;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -38,6 +39,14 @@ class MoneyReceipt extends Component
     public bool $processing = false;
 
     public ?array $result = null;
+
+    /**
+     * Client-generated idempotency key (becomes tblpayment.mrn, which is
+     * UNIQUE). Stable for a given confirmed entry so a retry / double-submit
+     * cannot create a second payment. Regenerated whenever the entry is
+     * re-reviewed or a new entry is started.
+     */
+    public string $mrn = '';
 
     public function mount(?int $customer = null): void
     {
@@ -136,7 +145,7 @@ class MoneyReceipt extends Component
 
     public function changeCustomer(): void
     {
-        $this->reset('customer', 'amount', 'searched', 'lookupError', 'result');
+        $this->reset('customer', 'amount', 'searched', 'lookupError', 'result', 'mrn');
         $this->step = 'form';
         $this->customerId = '';
     }
@@ -166,6 +175,10 @@ class MoneyReceipt extends Component
             return;
         }
 
+        // Fresh idempotency key for this confirmed entry (ties the amount/
+        // customer/ledger about to be submitted to a single tblpayment row).
+        $this->mrn = 'PWA'.auth()->id().Str::ulid();
+
         $this->step = 'confirm';
     }
 
@@ -188,12 +201,21 @@ class MoneyReceipt extends Component
             'ledger_id' => (int) $this->ledgerId,
             'user_id' => (int) auth()->id(),
             'recharge' => $this->recharge,
+            'mrn' => $this->mrn,
         ]);
 
         $body = $response['body'];
+
+        // A duplicate for OUR own mrn means our submit already went through
+        // (double-submit / retry): treat it as recorded, never as a failure.
+        $isDuplicate = ! empty($body['duplicate']);
+
         $this->result = [
-            'ok' => $response['ok'] && ($body['status'] ?? false),
-            'message' => $body['message'] ?? ($response['ok'] ? 'Completed.' : 'The request could not be completed.'),
+            'ok' => $isDuplicate || ($response['ok'] && ($body['status'] ?? false)),
+            'duplicate' => $isDuplicate,
+            'message' => $isDuplicate
+                ? 'This receipt was already recorded — no duplicate was created.'
+                : ($body['message'] ?? ($response['ok'] ? 'Completed.' : 'The request could not be completed.')),
             'data' => $body,
         ];
 
@@ -203,7 +225,7 @@ class MoneyReceipt extends Component
 
     public function newEntry(): void
     {
-        $this->reset('customer', 'customerId', 'amount', 'searched', 'lookupError', 'result');
+        $this->reset('customer', 'customerId', 'amount', 'searched', 'lookupError', 'result', 'mrn');
         $this->step = 'form';
     }
 
