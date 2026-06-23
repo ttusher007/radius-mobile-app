@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full">
 <head>
+    @PwaHead
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <meta name="theme-color" content="#18181b">
     <title>{{ isset($title) ? $title . ' — ' : '' }}{{ config('app.name') }}</title>
     @fonts
     @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
@@ -53,15 +53,19 @@
         {{-- Navigation --}}
         <nav class="flex flex-1 flex-col overflow-y-auto px-3 py-4">
 
-            {{-- Main items --}}
+            {{-- Main items (RBAC-gated, same permission model as DCM) --}}
+            @php
+                $navItems = array_values(array_filter([
+                    ['icon' => 'home', 'label' => 'Dashboard', 'href' => route('dashboard'), 'route' => 'dashboard', 'visible' => true],
+                    ['icon' => 'document-text', 'label' => 'Bill View', 'href' => route('billing.bill-view'), 'route' => 'billing.bill-view', 'visible' => \App\Support\BillingScope::hasAnyScope()],
+                    ['icon' => 'banknotes', 'label' => 'Money Receipt', 'href' => route('billing.money-receipt'), 'route' => 'billing.money-receipt', 'visible' => \App\Support\AccessHelper::any(['money-receipt-entry', 'money-receipt-entry-admin', 'super-admin', 'perm_all_manager'])],
+                    ['icon' => 'chart-bar', 'label' => 'Collection Report', 'href' => route('reports.collection'), 'route' => 'reports.collection', 'visible' => \App\Support\AccessHelper::any(['report_mac-payment', 'super-admin', 'perm_all_manager'])],
+                ], fn ($item) => $item['visible']));
+            @endphp
+
             <p class="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Main</p>
             <div class="flex flex-col gap-0.5">
-                @foreach([
-                    ['icon' => 'home',      'label' => 'Dashboard',  'href' => route('dashboard'), 'route' => 'dashboard'],
-                    ['icon' => 'users',     'label' => 'Customers',  'href' => '#',               'route' => 'customers.*'],
-                    ['icon' => 'banknotes', 'label' => 'Billing',    'href' => route('billing.bill-view'), 'route' => 'billing.*'],
-                    ['icon' => 'chart-bar', 'label' => 'Reports',    'href' => '#',               'route' => 'reports.*'],
-                ] as $item)
+                @foreach($navItems as $item)
                     <a
                         href="{{ $item['href'] }}"
                         wire:navigate
@@ -80,27 +84,6 @@
 
             {{-- Spacer --}}
             <div class="flex-1"></div>
-
-            {{-- Bottom items --}}
-            <div class="flex flex-col gap-0.5 border-t border-white/10 pt-3">
-                @foreach([
-                    ['icon' => 'cog-6-tooth', 'label' => 'Settings', 'href' => '#', 'route' => 'settings.*'],
-                ] as $item)
-                    <a
-                        href="{{ $item['href'] }}"
-                        wire:navigate
-                        x-on:click="open = false"
-                        @class([
-                            'flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150',
-                            'bg-white/10 text-white'  => request()->routeIs($item['route']),
-                            'text-zinc-400 hover:bg-white/5 hover:text-white' => ! request()->routeIs($item['route']),
-                        ])
-                    >
-                        <flux:icon name="{{ $item['icon'] }}" class="size-5 shrink-0" />
-                        {{ $item['label'] }}
-                    </a>
-                @endforeach
-            </div>
         </nav>
     </aside>
 
@@ -169,5 +152,6 @@
     </div>
 
     @fluxScripts
+    @RegisterServiceWorkerScript
 </body>
 </html>

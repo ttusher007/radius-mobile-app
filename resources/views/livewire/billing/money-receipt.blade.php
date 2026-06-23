@@ -85,6 +85,10 @@
             <dl class="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                 <div><dt class="text-xs text-zinc-400">Package</dt><dd class="text-zinc-700 dark:text-zinc-300">{{ $customer['package'] ?: '—' }}</dd></div>
                 <div><dt class="text-xs text-zinc-400">Monthly Bill</dt><dd class="text-zinc-700 dark:text-zinc-300">৳{{ number_format($customer['bill_amount']) }}</dd></div>
+                <div><dt class="text-xs text-zinc-400">Current Expiry Date</dt><dd class="text-zinc-700 dark:text-zinc-300">{{ $customer['expiry_label'] }}</dd></div>
+                <div><dt class="text-xs text-zinc-400">Discount</dt><dd class="text-zinc-700 dark:text-zinc-300">৳{{ number_format($customer['discount']) }}</dd></div>
+                <div><dt class="text-xs text-zinc-400">IP Bill</dt><dd class="text-zinc-700 dark:text-zinc-300">৳{{ number_format($customer['ip_bill']) }}</dd></div>
+                <div><dt class="text-xs text-zinc-400">Extra Bill</dt><dd class="text-zinc-700 dark:text-zinc-300">৳{{ number_format($customer['extra_bill']) }}</dd></div>
                 <div><dt class="text-xs text-zinc-400">POP</dt><dd class="text-zinc-700 dark:text-zinc-300">{{ $customer['pop'] ?: '—' }}</dd></div>
                 <div><dt class="text-xs text-zinc-400">Contact</dt><dd class="text-zinc-700 dark:text-zinc-300">{{ $customer['contact'] ?: '—' }}</dd></div>
                 <div class="col-span-2"><dt class="text-xs text-zinc-400">Address</dt><dd class="text-zinc-700 dark:text-zinc-300">{{ $customer['address'] ?: '—' }}</dd></div>

@@ -4,6 +4,7 @@ namespace App\Livewire\Billing;
 
 use App\Services\DcmClient;
 use App\Support\ResellerPermissionHelper;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Computed;
@@ -130,7 +131,11 @@ class MoneyReceipt extends Component
             'due' => $due,
             'package' => $row->packagename,
             'bill_amount' => $billAmount,
+            'discount' => (int) ($row->discount ?? 0),
+            'ip_bill' => (int) ($row->ip_bill ?? 0),
+            'extra_bill' => (int) ($row->extra_bill ?? 0),
             'expiry_date' => $row->expiredate,
+            'expiry_label' => $this->formatExpiryDate($row->expiredate),
             'pop' => $row->popname,
             'manager' => $row->resellername,
             'address' => $this->formatAddress($row),
@@ -246,5 +251,18 @@ class MoneyReceipt extends Component
         ], fn ($part) => $part !== null && $part !== '');
 
         return implode(', ', $parts);
+    }
+
+    private function formatExpiryDate(?string $expiry): string
+    {
+        if (! $expiry || $expiry === '0000-00-00') {
+            return '—';
+        }
+
+        try {
+            return Carbon::parse($expiry)->format('d M Y');
+        } catch (\Throwable) {
+            return $expiry;
+        }
     }
 }

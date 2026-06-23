@@ -4,6 +4,7 @@ use App\Livewire\Auth\Login;
 use App\Livewire\Billing\BillView;
 use App\Livewire\Billing\MoneyReceipt;
 use App\Livewire\Dashboard;
+use App\Livewire\Reports\CollectionReport;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -20,6 +21,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/billing/money-receipt/{customerId?}', MoneyReceipt::class)
         ->whereNumber('customerId')
         ->name('billing.money-receipt');
+
+    Route::get('/reports/collection', CollectionReport::class)->name('reports.collection');
 });
 
 Route::post('/logout', function () {

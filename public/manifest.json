@@ -1,0 +1,16 @@
+{
+    "name": "Antaranga Mobile App",
+    "short_name": "Antaranga",
+    "background_color": "#6777ef",
+    "display": "fullscreen",
+    "description": "Antaranga Dot Com ERP Mobile App (PWA)",
+    "theme_color": "#6777ef",
+    "start_url": "/",
+    "icons": [
+        {
+            "src": "logo.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

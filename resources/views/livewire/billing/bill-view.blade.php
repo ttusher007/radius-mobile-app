@@ -141,20 +141,8 @@
                         <dd class="text-zinc-700 dark:text-zinc-300">৳{{ number_format($customer->bill_amount) }}</dd>
                     </div>
                     <div>
-                        <dt class="text-xs text-zinc-400">Expiry</dt>
-                        <dd class="text-zinc-700 dark:text-zinc-300">
-                            @php
-                                $expiry = $customer->expiry_date;
-                                try {
-                                    $expiryLabel = ($expiry && $expiry !== '0000-00-00')
-                                        ? \Illuminate\Support\Carbon::parse($expiry)->format('d M Y')
-                                        : '—';
-                                } catch (\Throwable $e) {
-                                    $expiryLabel = $expiry ?: '—';
-                                }
-                            @endphp
-                            {{ $expiryLabel }}
-                        </dd>
+                        <dt class="text-xs text-zinc-400">Current Expiry Date</dt>
+                        <dd class="text-zinc-700 dark:text-zinc-300">{{ $customer->expiry_label }}</dd>
                     </div>
                     <div>
                         <dt class="text-xs text-zinc-400">Contact</dt>

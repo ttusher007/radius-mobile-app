@@ -6,6 +6,7 @@ use App\Models\Pop;
 use App\Models\Reseller;
 use App\Support\ResellerPermissionHelper;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -276,6 +277,7 @@ class BillView extends Component
             'area' => $row->area,
             'package' => $row->packagename,
             'expiry_date' => $row->expiredate,
+            'expiry_label' => $this->formatExpiryDate($row->expiredate),
             'bill_amount' => max(0, $billAmount),
             'due_amount' => (float) $row->balance,
             'enabled' => (int) $row->enableuser === 1,
@@ -295,6 +297,19 @@ class BillView extends Component
         ], fn ($part) => $part !== null && $part !== '');
 
         return implode(', ', $parts);
+    }
+
+    private function formatExpiryDate(?string $expiry): string
+    {
+        if (! $expiry || $expiry === '0000-00-00') {
+            return '—';
+        }
+
+        try {
+            return Carbon::parse($expiry)->format('d M Y');
+        } catch (\Throwable) {
+            return $expiry;
+        }
     }
 
     // ── Permission scope (memoised per request) ──────────────────────────
