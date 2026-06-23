@@ -1,0 +1,17 @@
+{
+    "agents": [
+        "junie",
+        "claude_code"
+    ],
+    "cloud": false,
+    "packages": [
+        "livewire/blaze"
+    ],
+    "skills": [
+        "laravel-best-practices",
+        "fluxui-development",
+        "livewire-development",
+        "tailwindcss-development",
+        "blaze-optimize"
+    ]
+}
