@@ -29,6 +29,12 @@ class Login extends Component
             return;
         }
 
+        if (! Auth::user()->is_active) {
+            Auth::logout();
+            $this->addError('email', 'Your account is inactive. Contact the administrator.');
+            return;
+        }
+
         session()->regenerate();
 
         $this->redirect('/', navigate: true);
