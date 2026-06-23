@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    // Legacy DCM ERP — its proven recharge engine handles money-receipt commits.
+    'dcm' => [
+        'url' => env('DCM_INTERNAL_URL'),
+        'secret' => env('INTERNAL_API_SECRET'),
+        'timeout' => (int) env('DCM_INTERNAL_TIMEOUT', 30),
+    ],
+
 ];

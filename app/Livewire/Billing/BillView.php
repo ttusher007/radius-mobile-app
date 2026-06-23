@@ -34,7 +34,7 @@ class BillView extends Component
 
     /** Connection status filter: all | enable | disable. */
     #[Url(as: 'status')]
-    public string $status = 'all';
+    public string $status = 'enable';
 
     /** Free-text search across id / username / name / contact. */
     #[Url(as: 'q')]
