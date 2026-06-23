@@ -59,7 +59,7 @@
                 @foreach([
                     ['icon' => 'home',      'label' => 'Dashboard',  'href' => route('dashboard'), 'route' => 'dashboard'],
                     ['icon' => 'users',     'label' => 'Customers',  'href' => '#',               'route' => 'customers.*'],
-                    ['icon' => 'banknotes', 'label' => 'Billing',    'href' => '#',               'route' => 'billing.*'],
+                    ['icon' => 'banknotes', 'label' => 'Billing',    'href' => route('billing.bill-view'), 'route' => 'billing.*'],
                     ['icon' => 'chart-bar', 'label' => 'Reports',    'href' => '#',               'route' => 'reports.*'],
                 ] as $item)
                     <a
