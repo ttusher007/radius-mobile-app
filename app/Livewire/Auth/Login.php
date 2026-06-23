@@ -3,6 +3,7 @@
 namespace App\Livewire\Auth;
 
 use Illuminate\Support\Facades\Auth;
+use Illuminate\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
@@ -26,21 +27,23 @@ class Login extends Component
 
         if (! Auth::attempt(['email' => $this->email, 'password' => $this->password], $this->remember)) {
             $this->addError('email', __('auth.failed'));
+
             return;
         }
 
-        if (! Auth::user()->is_active) {
+        if (! Auth::user()->active_state) {
             Auth::logout();
             $this->addError('email', 'Your account is inactive. Contact the administrator.');
+
             return;
         }
 
         session()->regenerate();
 
-        $this->redirect('/', navigate: true);
+        $this->redirectRoute('dashboard', navigate: true);
     }
 
-    public function render(): \Illuminate\View\View
+    public function render(): View
     {
         return view('livewire.auth.login');
     }

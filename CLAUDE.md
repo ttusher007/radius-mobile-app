@@ -80,3 +80,4 @@ Boost is installed (`boost.json`) and registers skills for this project. When wr
 - `fluxui-development` — building UI with `<flux:*>` components.
 - `tailwindcss-development` — Tailwind v4 utility styling.
 - `blaze-optimize` — optimizing Blade component rendering with `@blaze`.
+- `cursor-development` — guidelines for Cursor AI development and rules (`.cursor/skills/cursor-development`).

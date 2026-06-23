@@ -1,7 +1,8 @@
 {
     "agents": [
         "junie",
-        "claude_code"
+        "claude_code",
+        "cursor"
     ],
     "cloud": false,
     "packages": [
