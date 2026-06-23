@@ -17,8 +17,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', Dashboard::class)->name('dashboard');
 
     Route::get('/billing/bill-view', BillView::class)->name('billing.bill-view');
-    Route::get('/billing/money-receipt/{customer?}', MoneyReceipt::class)
-        ->whereNumber('customer')
+    Route::get('/billing/money-receipt/{customerId?}', MoneyReceipt::class)
+        ->whereNumber('customerId')
         ->name('billing.money-receipt');
 });
 

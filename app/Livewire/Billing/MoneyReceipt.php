@@ -48,10 +48,9 @@ class MoneyReceipt extends Component
      */
     public string $mrn = '';
 
-    public function mount(?int $customer = null): void
+    public function mount(): void
     {
-        if ($customer !== null) {
-            $this->customerId = (string) $customer;
+        if (trim($this->customerId) !== '') {
             $this->loadCustomer();
         }
     }
