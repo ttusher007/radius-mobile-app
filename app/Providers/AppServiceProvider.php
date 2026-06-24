@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\Permission;
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
@@ -36,6 +37,11 @@ class AppServiceProvider extends ServiceProvider
      * through the user's roles. Mirrors the legacy DCM permission system so
      * abilities such as `perm_all_manager` / `money-receipt-entry` work as
      * named gates across the app.
+     *
+     * The permission→role map (~600 rows) is static between RBAC edits, so it
+     * is cached to avoid hydrating every Permission model on each request.
+     * Run `php artisan cache:forget permission_role_map` (or `cache:clear`)
+     * after changing role/permission assignments.
      */
     private function registerPermissionGates(): void
     {
@@ -44,20 +50,28 @@ class AppServiceProvider extends ServiceProvider
         }
 
         try {
-            if (! Schema::hasTable('permissions') || ! Schema::hasTable('permission_role')) {
-                return;
-            }
+            // [permissionName => [roleId, ...]] — cached; only the cache table
+            // is touched on a hit, not the 600+ permission rows.
+            $map = Cache::get('permission_role_map');
 
-            // [permissionName => [roleId, ...]] — loaded once per request.
-            $map = [];
-            foreach (Permission::with('roles:id')->get() as $permission) {
-                $map[$permission->name] = $permission->roles
-                    ->pluck('id')
-                    ->map(fn ($id) => (int) $id)
+            if ($map === null) {
+                if (! Schema::hasTable('permissions') || ! Schema::hasTable('permission_role')) {
+                    return;
+                }
+
+                $map = Permission::with('roles:id')->get()
+                    ->mapWithKeys(fn (Permission $permission): array => [
+                        $permission->name => $permission->roles
+                            ->pluck('id')
+                            ->map(fn ($id) => (int) $id)
+                            ->all(),
+                    ])
                     ->all();
+
+                Cache::put('permission_role_map', $map, now()->addHours(24));
             }
         } catch (Throwable) {
-            // DB unavailable (e.g. during setup) — skip gate registration.
+            // DB/cache unavailable (e.g. during setup) — skip gate registration.
             return;
         }
 
