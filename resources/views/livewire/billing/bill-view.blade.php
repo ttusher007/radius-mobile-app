@@ -21,32 +21,13 @@
     <flux:card class="p-4 sm:p-5" x-show="filtersOpen" x-collapse>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
-            <flux:select wire:model.live="managerId" label="Manager">
-                <flux:select.option value="all">-- All --</flux:select.option>
-                @foreach ($this->managers as $manager)
-                    <flux:select.option :value="(string) $manager->id">{{ $manager->name }}</flux:select.option>
-                @endforeach
-            </flux:select>
+            <x-searchable-select model="managerId" label="Manager" :options="$this->managerOptions" />
 
-            <flux:select wire:model.live="popId" label="POP">
-                <flux:select.option value="all">-- All --</flux:select.option>
-                @foreach ($this->pops as $pop)
-                    <flux:select.option :value="(string) $pop->id">{{ $pop->name }}</flux:select.option>
-                @endforeach
-            </flux:select>
+            <x-searchable-select model="popId" label="POP" :options="$this->popOptions" />
 
-            <flux:select wire:model.live="area" label="Area">
-                <flux:select.option value="all">-- All --</flux:select.option>
-                @foreach ($this->areas as $areaOption)
-                    <flux:select.option :value="$areaOption">{{ $areaOption }}</flux:select.option>
-                @endforeach
-            </flux:select>
+            <x-searchable-select model="area" label="Area" :options="$this->areaOptions" />
 
-            <flux:select wire:model.live="status" label="Status">
-                <flux:select.option value="all">All</flux:select.option>
-                <flux:select.option value="enable">Enabled</flux:select.option>
-                <flux:select.option value="disable">Disabled</flux:select.option>
-            </flux:select>
+            <x-searchable-select model="status" label="Status" :options="$this->statusOptions" />
         </div>
 
         <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -142,7 +123,7 @@
                     </div>
                     <div>
                         <dt class="text-xs text-zinc-400">Current Expiry Date</dt>
-                        <dd class="text-zinc-700 dark:text-zinc-300">{{ $customer->expiry_label }}</dd>
+                        <dd><x-expiry-date :date="$customer->expiry_date" :label="$customer->expiry_label" /></dd>
                     </div>
                     <div>
                         <dt class="text-xs text-zinc-400">Contact</dt>

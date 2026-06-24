@@ -4,9 +4,9 @@ namespace App\Livewire\Billing;
 
 use App\Models\Pop;
 use App\Models\Reseller;
+use App\Support\ExpiryDateHelper;
 use App\Support\ResellerPermissionHelper;
 use Illuminate\Database\Query\Builder;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -148,6 +148,58 @@ class BillView extends Component
             ->all();
     }
 
+    /**
+     * @return array<int, array{value:string, label:string}>
+     */
+    #[Computed]
+    public function managerOptions(): array
+    {
+        return collect($this->managers)
+            ->map(fn ($manager) => ['value' => (string) $manager->id, 'label' => $manager->name])
+            ->prepend(['value' => 'all', 'label' => '-- All --'])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{value:string, label:string}>
+     */
+    #[Computed]
+    public function popOptions(): array
+    {
+        return collect($this->pops)
+            ->map(fn ($pop) => ['value' => (string) $pop->id, 'label' => $pop->name])
+            ->prepend(['value' => 'all', 'label' => '-- All --'])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{value:string, label:string}>
+     */
+    #[Computed]
+    public function areaOptions(): array
+    {
+        return collect($this->areas)
+            ->map(fn ($area) => ['value' => $area, 'label' => $area])
+            ->prepend(['value' => 'all', 'label' => '-- All --'])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{value:string, label:string}>
+     */
+    #[Computed]
+    public function statusOptions(): array
+    {
+        return [
+            ['value' => 'all', 'label' => 'All'],
+            ['value' => 'enable', 'label' => 'Enabled'],
+            ['value' => 'disable', 'label' => 'Disabled'],
+        ];
+    }
+
     // ── Result set ───────────────────────────────────────────────────────
 
     #[Computed]
@@ -277,7 +329,7 @@ class BillView extends Component
             'area' => $row->area,
             'package' => $row->packagename,
             'expiry_date' => $row->expiredate,
-            'expiry_label' => $this->formatExpiryDate($row->expiredate),
+            'expiry_label' => ExpiryDateHelper::format($row->expiredate),
             'bill_amount' => max(0, $billAmount),
             'due_amount' => (float) $row->balance,
             'enabled' => (int) $row->enableuser === 1,
@@ -297,19 +349,6 @@ class BillView extends Component
         ], fn ($part) => $part !== null && $part !== '');
 
         return implode(', ', $parts);
-    }
-
-    private function formatExpiryDate(?string $expiry): string
-    {
-        if (! $expiry || $expiry === '0000-00-00') {
-            return '—';
-        }
-
-        try {
-            return Carbon::parse($expiry)->format('d M Y');
-        } catch (\Throwable) {
-            return $expiry;
-        }
     }
 
     // ── Permission scope (memoised per request) ──────────────────────────

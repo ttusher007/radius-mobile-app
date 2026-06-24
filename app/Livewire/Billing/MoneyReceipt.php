@@ -2,11 +2,11 @@
 
 namespace App\Livewire\Billing;
 
+use App\Models\TblPayment;
 use App\Services\DcmClient;
-use App\Support\ResellerPermissionHelper;
+use App\Support\ExpiryDateHelper;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -135,7 +135,7 @@ class MoneyReceipt extends Component
             'ip_bill' => (int) ($row->ip_bill ?? 0),
             'extra_bill' => (int) ($row->extra_bill ?? 0),
             'expiry_date' => $row->expiredate,
-            'expiry_label' => $this->formatExpiryDate($row->expiredate),
+            'expiry_label' => ExpiryDateHelper::format($row->expiredate),
             'pop' => $row->popname,
             'manager' => $row->resellername,
             'address' => $this->formatAddress($row),
@@ -181,7 +181,7 @@ class MoneyReceipt extends Component
 
         // Fresh idempotency key for this confirmed entry (ties the amount/
         // customer/ledger about to be submitted to a single tblpayment row).
-        $this->mrn = 'PWA'.auth()->id().Str::ulid();
+        $this->mrn = $this->generateMrn();
 
         $this->step = 'confirm';
     }
@@ -238,6 +238,30 @@ class MoneyReceipt extends Component
         return view('livewire.billing.money-receipt');
     }
 
+    /**
+     * MRN format: YmdHi + 4-digit suffix (YearMonthDateHourMin + millisec).
+     * Example: 2026062323010001
+     */
+    private function generateMrn(): string
+    {
+        $now = Carbon::now();
+        $base = $now->format('YmdHi');
+        $suffix = (int) floor((int) $now->format('u') / 100);
+
+        do {
+            $mrn = $base.sprintf('%04d', $suffix);
+            $suffix++;
+            if ($suffix > 9999) {
+                usleep(1000);
+                $now = Carbon::now();
+                $base = $now->format('YmdHi');
+                $suffix = (int) floor((int) $now->format('u') / 100);
+            }
+        } while (TblPayment::where('mrn', $mrn)->exists());
+
+        return $mrn;
+    }
+
     private function formatAddress(object $row): string
     {
         $parts = array_filter([
@@ -251,18 +275,5 @@ class MoneyReceipt extends Component
         ], fn ($part) => $part !== null && $part !== '');
 
         return implode(', ', $parts);
-    }
-
-    private function formatExpiryDate(?string $expiry): string
-    {
-        if (! $expiry || $expiry === '0000-00-00') {
-            return '—';
-        }
-
-        try {
-            return Carbon::parse($expiry)->format('d M Y');
-        } catch (\Throwable) {
-            return $expiry;
-        }
     }
 }

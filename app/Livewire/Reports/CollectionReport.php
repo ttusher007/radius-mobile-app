@@ -2,10 +2,13 @@
 
 namespace App\Livewire\Reports;
 
+use App\Models\Ledger;
 use App\Models\Pop;
 use App\Models\Reseller;
+use App\Models\User;
 use App\Support\AccessHelper;
 use App\Support\BillingScope;
+use App\Support\ExpiryDateHelper;
 use App\Support\ResellerPermissionHelper;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
@@ -41,6 +44,12 @@ class CollectionReport extends Component
 
     #[Url(as: 'pop')]
     public string $popId = 'all';
+
+    #[Url(as: 'ledger')]
+    public string $ledgerId = 'all';
+
+    #[Url(as: 'entry_by')]
+    public string $entryById = 'all';
 
     public int $perPage = 30;
 
@@ -82,6 +91,22 @@ class CollectionReport extends Component
         $this->resetPage();
     }
 
+    public function updatedLedgerId(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedEntryById(): void
+    {
+        $this->resetPage();
+    }
+
+    #[Computed]
+    public function canViewAllEntries(): bool
+    {
+        return AccessHelper::any(['perm_all_manager']);
+    }
+
     /**
      * @return array<int, object{id:int, name:string}>
      */
@@ -112,6 +137,100 @@ class CollectionReport extends Component
             ->when($this->managerId !== 'all', fn ($q) => $q->where('allowresellerid', (int) $this->managerId))
             ->orderBy('popname')
             ->get(['id', 'popname as name'])
+            ->all();
+    }
+
+    /**
+     * Cash/bank ledgers the user may filter on.
+     *
+     * @return array<int, object{id:int, name:string}>
+     */
+    #[Computed]
+    public function ledgers(): array
+    {
+        if ($this->canViewAllEntries) {
+            return Ledger::query()
+                ->orderBy('Ledger_Name')
+                ->get(['Ledger_Id as id', 'Ledger_Name as name'])
+                ->all();
+        }
+
+        return DB::table('ledger_users as lu')
+            ->join('ledgers as l', 'l.Ledger_Id', '=', 'lu.ledger_id')
+            ->where('lu.user_id', auth()->id())
+            ->orderBy('l.Ledger_Name')
+            ->get(['l.Ledger_Id as id', 'l.Ledger_Name as name'])
+            ->all();
+    }
+
+    /**
+     * Staff who may appear in the Entry By filter (managers only).
+     *
+     * @return array<int, object{id:int, name:string}>
+     */
+    #[Computed]
+    public function entryUsers(): array
+    {
+        if (! $this->canViewAllEntries) {
+            return [];
+        }
+
+        return User::query()
+            ->where('active_state', 1)
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{value:string, label:string}>
+     */
+    #[Computed]
+    public function managerOptions(): array
+    {
+        return collect($this->managers)
+            ->map(fn ($manager) => ['value' => (string) $manager->id, 'label' => $manager->name])
+            ->prepend(['value' => 'all', 'label' => '-- All --'])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{value:string, label:string}>
+     */
+    #[Computed]
+    public function popOptions(): array
+    {
+        return collect($this->pops)
+            ->map(fn ($pop) => ['value' => (string) $pop->id, 'label' => $pop->name])
+            ->prepend(['value' => 'all', 'label' => '-- All --'])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{value:string, label:string}>
+     */
+    #[Computed]
+    public function ledgerOptions(): array
+    {
+        return collect($this->ledgers)
+            ->map(fn ($ledger) => ['value' => (string) $ledger->id, 'label' => $ledger->name])
+            ->prepend(['value' => 'all', 'label' => '-- All --'])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{value:string, label:string}>
+     */
+    #[Computed]
+    public function entryUserOptions(): array
+    {
+        return collect($this->entryUsers)
+            ->map(fn ($user) => ['value' => (string) $user->id, 'label' => $user->name])
+            ->prepend(['value' => 'all', 'label' => '-- All --'])
+            ->values()
             ->all();
     }
 
@@ -155,10 +274,12 @@ class CollectionReport extends Component
     public function payments()
     {
         return $this->baseQuery()
+            ->leftJoin('tbl_employee as e', 'e.id', '=', 'p.col_by')
             ->select([
                 'p.id', 'p.cid', 'p.col_date', 'p.mrn', 'p.col_by', 'p.amt',
-                'c.username', 'c.clientname',
+                'c.username', 'c.clientname', 'c.expiredate',
                 'pl.popname', 'r.resellername', 'l.Ledger_Name as ledger_name',
+                'e.Emp_name as collector_name',
             ])
             ->orderByDesc('p.col_date')
             ->orderByDesc('p.id')
@@ -172,8 +293,10 @@ class CollectionReport extends Component
                 'manager' => $row->resellername,
                 'pop' => $row->popname,
                 'mrn' => $row->mrn,
-                'col_by' => $row->col_by,
+                'col_by' => $row->collector_name ?: $row->col_by ?: '—',
                 'ledger' => $row->ledger_name ?: '—',
+                'expiry_date' => $row->expiredate,
+                'expiry_label' => ExpiryDateHelper::format($row->expiredate),
                 'amount' => (float) $row->amt,
             ]);
     }
@@ -208,6 +331,20 @@ class CollectionReport extends Component
         if ($this->popId !== 'all'
             && ResellerPermissionHelper::hasPopPermission((int) $this->popId)) {
             $query->where('c.allowpopid', (int) $this->popId);
+        }
+
+        $allowedLedgerIds = collect($this->ledgers)->pluck('id')->map(fn ($id) => (int) $id)->all();
+        if ($this->ledgerId !== 'all' && in_array((int) $this->ledgerId, $allowedLedgerIds, true)) {
+            $query->where('p.ledger_id', (int) $this->ledgerId);
+        }
+
+        if ($this->canViewAllEntries) {
+            $allowedEntryIds = collect($this->entryUsers)->pluck('id')->map(fn ($id) => (string) $id)->all();
+            if ($this->entryById !== 'all' && in_array($this->entryById, $allowedEntryIds, true)) {
+                $query->where('p.entry_by', $this->entryById);
+            }
+        } else {
+            $query->where('p.entry_by', (string) auth()->id());
         }
 
         return $query;

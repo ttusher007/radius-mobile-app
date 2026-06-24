@@ -14,23 +14,19 @@
 
     {{-- Filters --}}
     <flux:card class="p-4 sm:p-5" x-show="filtersOpen" x-collapse>
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <flux:input type="date" wire:model.live="from" label="From" />
             <flux:input type="date" wire:model.live="to" label="To" />
 
-            <flux:select wire:model.live="managerId" label="Manager">
-                <flux:select.option value="all">-- All --</flux:select.option>
-                @foreach ($this->managers as $manager)
-                    <flux:select.option :value="(string) $manager->id">{{ $manager->name }}</flux:select.option>
-                @endforeach
-            </flux:select>
+            <x-searchable-select model="managerId" label="Manager" :options="$this->managerOptions" />
 
-            <flux:select wire:model.live="popId" label="POP">
-                <flux:select.option value="all">-- All --</flux:select.option>
-                @foreach ($this->pops as $pop)
-                    <flux:select.option :value="(string) $pop->id">{{ $pop->name }}</flux:select.option>
-                @endforeach
-            </flux:select>
+            <x-searchable-select model="popId" label="POP" :options="$this->popOptions" />
+
+            <x-searchable-select model="ledgerId" label="Ledger" :options="$this->ledgerOptions" />
+
+            @if ($this->canViewAllEntries)
+                <x-searchable-select model="entryById" label="Entry By" :options="$this->entryUserOptions" />
+            @endif
         </div>
     </flux:card>
 
@@ -84,6 +80,7 @@
                     <div><dt class="text-xs text-zinc-400">Ledger</dt><dd class="text-zinc-700 dark:text-zinc-300">{{ $payment->ledger }}</dd></div>
                     <div><dt class="text-xs text-zinc-400">Receipt #</dt><dd class="truncate font-mono text-xs text-zinc-700 dark:text-zinc-300">{{ $payment->mrn ?: '—' }}</dd></div>
                     <div><dt class="text-xs text-zinc-400">Collected by</dt><dd class="text-zinc-700 dark:text-zinc-300">{{ $payment->col_by ?: '—' }}</dd></div>
+                    <div><dt class="text-xs text-zinc-400">Expiry Date</dt><dd><x-expiry-date :date="$payment->expiry_date" :label="$payment->expiry_label" /></dd></div>
                 </dl>
             </flux:card>
         @empty
