@@ -30,9 +30,6 @@ class CollectionReport extends Component
 {
     use WithPagination;
 
-    /** Permissions that may open this report. */
-    private const PERMS = ['report_mac-payment', 'super-admin', 'perm_all_manager'];
-
     #[Url(as: 'from')]
     public string $from = '';
 
@@ -55,9 +52,6 @@ class CollectionReport extends Component
 
     public function mount(): void
     {
-        abort_unless(AccessHelper::any(self::PERMS) && BillingScope::hasAnyScope(), 403,
-            'You do not have access to the collection report.');
-
         $today = now()->toDateString();
         if ($this->from === '' || ! $this->isValidDate($this->from)) {
             $this->from = $today;

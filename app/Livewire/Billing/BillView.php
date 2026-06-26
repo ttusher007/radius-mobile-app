@@ -47,18 +47,6 @@ class BillView extends Component
 
     private bool|array|null $popScopeMemo = null;
 
-    public function mount(): void
-    {
-        $reseller = $this->resellerScope();
-        $pop = $this->popScope();
-
-        $hasScope = $reseller === true
-            || (is_array($reseller) && $reseller !== [])
-            || (is_array($pop) && $pop !== []);
-
-        abort_unless($hasScope, 403, 'You do not have access to any managers or POPs.');
-    }
-
     // ── Filter change handlers (cascade resets) ──────────────────────────
 
     public function updatedManagerId(): void

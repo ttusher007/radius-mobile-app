@@ -14,7 +14,7 @@ Route::middleware('guest')->group(function () {
     Route::get('/login', Login::class)->name('login');
 });
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/dashboard', Dashboard::class)->name('dashboard');
 
     Route::get('/billing/bill-view', BillView::class)->name('billing.bill-view');
