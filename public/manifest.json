@@ -1,9 +1,9 @@
 {
-    "name": "Antaranga Mobile App",
-    "short_name": "Antaranga",
+    "name": "Radius Mobile App",
+    "short_name": "Radius",
     "background_color": "#6777ef",
     "display": "fullscreen",
-    "description": "Antaranga Dot Com ERP Mobile App (PWA)",
+    "description": "Radius Mobile App (PWA)",
     "theme_color": "#6777ef",
     "start_url": "/",
     "icons": [

@@ -19,11 +19,11 @@ return [
     */
 
     'manifest' => [
-        'name' => env('PWA_NAME', 'Radius Mobile App'),
-        'short_name' => env('PWA_SHORT_NAME', 'Radius'),
+        'name' => env('PWA_NAME', env('APP_NAME', 'Radius Mobile App')),
+        'short_name' => env('PWA_SHORT_NAME', env('APP_NAME', 'Radius')),
         'background_color' => '#6777ef',
         'display' => 'fullscreen',
-        'description' => env('PWA_DESCRIPTION', 'Radius ERP Mobile App (PWA)'),
+        'description' => env('PWA_DESCRIPTION', env('APP_NAME', 'Radius Mobile App').' (PWA)'),
         'theme_color' => '#6777ef',
         'icons' => [
             [
