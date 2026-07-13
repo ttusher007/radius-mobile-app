@@ -19,11 +19,11 @@ return [
     */
 
     'manifest' => [
-        'name' => 'Antaranga Mobile App',
-        'short_name' => 'Antaranga',
+        'name' => env('PWA_NAME', 'Radius Mobile App'),
+        'short_name' => env('PWA_SHORT_NAME', 'Radius'),
         'background_color' => '#6777ef',
         'display' => 'fullscreen',
-        'description' => 'Antaranga Dot Com ERP Mobile App (PWA)',
+        'description' => env('PWA_DESCRIPTION', 'Radius ERP Mobile App (PWA)'),
         'theme_color' => '#6777ef',
         'icons' => [
             [
