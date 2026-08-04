@@ -1,1 +1,1 @@
-//
+import './receipt-printer';

@@ -35,6 +35,12 @@ class MoneyReceipt extends Component
 
     public bool $recharge = true;
 
+    /**
+     * Print a POS receipt after saving. The choice is persisted in the
+     * browser's localStorage (see the view) so it survives across entries.
+     */
+    public bool $printReceipt = true;
+
     /** Wizard step: form | confirm | done. */
     public string $step = 'form';
 
@@ -224,8 +230,45 @@ class MoneyReceipt extends Component
             'data' => $body,
         ];
 
+        if ($this->result['ok']) {
+            $this->result['receipt'] = $this->buildReceipt($body);
+
+            if ($this->printReceipt) {
+                $this->dispatch('mr-print-receipt', receipt: $this->result['receipt'], manual: false);
+            }
+        }
+
         $this->step = 'done';
         $this->processing = false;
+    }
+
+    /**
+     * Data for the printable POS receipt (consumed by receipt-printer.js).
+     *
+     * @return array<string, mixed>
+     */
+    private function buildReceipt(array $body): array
+    {
+        $previousDue = (float) $this->customer['due'];
+        $amount = isset($body['amount']) ? (float) $body['amount'] : (float) $this->amount;
+
+        return [
+            'company' => (string) config('pwa.manifest.name', config('app.name')),
+            'mrn' => (string) ($body['mrn'] ?? $this->mrn),
+            'date' => now()->format('d M Y, h:i A'),
+            'customer_id' => (int) $this->customer['id'],
+            'customer_name' => (string) ($this->customer['name'] ?? ''),
+            'username' => (string) ($this->customer['username'] ?? ''),
+            'contact' => (string) ($this->customer['contact'] ?? ''),
+            'address' => (string) ($this->customer['address'] ?? ''),
+            'package' => (string) ($this->customer['package'] ?? ''),
+            'previous_due' => $previousDue,
+            'amount' => $amount,
+            'new_due' => array_key_exists('balance', $body) ? (float) $body['balance'] : $previousDue - $amount,
+            'ledger' => (string) (collect($this->ledgers())->firstWhere('id', (int) $this->ledgerId)?->name ?? ''),
+            'received_by' => (string) (auth()->user()->name ?? ''),
+            'recharge_months' => ! empty($body['recharged']) ? (int) ($body['recharge_months'] ?? 1) : 0,
+        ];
     }
 
     public function newEntry(): void

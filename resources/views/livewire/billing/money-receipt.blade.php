@@ -6,6 +6,8 @@
             if (l && ! $wire.ledgerId) $wire.set('ledgerId', l, false);
             const r = localStorage.getItem('mr_recharge');
             if (r !== null) $wire.set('recharge', r === '1', false);
+            const p = localStorage.getItem('mr_print_receipt');
+            if (p !== null) $wire.set('printReceipt', p === '1', false);
         }
     }"
     x-on:mr-focus-amount.window="$nextTick(() => { const el = document.getElementById('mr-amount'); if (el) { el.focus(); el.select(); } })"
@@ -145,6 +147,13 @@
                     </p>
                 </div>
 
+                <div class="mt-4" x-on:change="localStorage.setItem('mr_print_receipt', $event.target.checked ? '1' : '0')">
+                    <flux:checkbox wire:model="printReceipt" label="Print Receipt" />
+                    <p class="mt-1 pl-7 text-xs text-zinc-500">
+                        Print a POS receipt after saving — Bluetooth printer on mobile, system POS printer on desktop.
+                    </p>
+                </div>
+
                 <div class="mt-6">
                     <flux:button
                         wire:click="review"
@@ -273,6 +282,17 @@
                     <flux:button wire:click="newEntry" variant="primary" icon="plus" class="min-h-[44px] w-full sm:flex-1">
                         New Entry
                     </flux:button>
+                    @if ($result['ok'] && ! empty($result['receipt']))
+                        <flux:button
+                            type="button"
+                            variant="outline"
+                            icon="printer"
+                            class="min-h-[44px] w-full sm:w-auto"
+                            x-on:click="window.dispatchEvent(new CustomEvent('mr-print-receipt', { detail: { receipt: {{ \Illuminate\Support\Js::from($result['receipt']) }}, manual: true } }))"
+                        >
+                            Print Receipt
+                        </flux:button>
+                    @endif
                     @if (! $result['ok'])
                         <flux:button wire:click="back" variant="ghost" class="min-h-[44px] w-full sm:w-auto">
                             Try Again
