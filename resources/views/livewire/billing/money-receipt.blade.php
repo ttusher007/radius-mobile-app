@@ -173,7 +173,7 @@
                     </p>
                 </div>
 
-                <div class="mt-4" x-data="{ method: localStorage.getItem('mr_print_method') || 'auto' }">
+                <div class="mt-4" x-data="{ method: localStorage.getItem('mr_print_method') || 'auto', showSetup: false }">
                     <div x-on:change="localStorage.setItem('mr_print_receipt', $event.target.checked ? '1' : '0')">
                         <flux:checkbox wire:model="printReceipt" label="Print Receipt" />
                         <p class="mt-1 pl-7 text-xs text-zinc-500">
@@ -181,8 +181,19 @@
                         </p>
                     </div>
 
+                    <div x-show="$wire.printReceipt" style="display: none" class="mt-2 pl-7">
+                        <button
+                            type="button"
+                            class="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                            x-on:click="showSetup = ! showSetup"
+                        >
+                            <flux:icon name="cog-6-tooth" class="size-3.5" />
+                            <span x-text="showSetup ? 'Hide printer setup' : 'Printer setup'"></span>
+                        </button>
+                    </div>
+
                     <div
-                        x-show="$wire.printReceipt"
+                        x-show="$wire.printReceipt && showSetup"
                         style="display: none"
                         class="mt-3 space-y-3 rounded-xl bg-zinc-50 p-3 dark:bg-zinc-800/50"
                     >
