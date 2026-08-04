@@ -1,62 +1,81 @@
 /**
  * POS receipt printing for the Money Receipt screen.
  *
- * Listens for the `mr-print-receipt` window event (dispatched by the
- * Livewire component after a successful save, and by the manual
- * "Print Receipt" button). Routing:
+ * Window events consumed:
+ *   mr-print-receipt  { receipt, manual }  print a receipt
+ *   mr-pair-printer   -                    open the Bluetooth chooser (needs a tap)
+ *   mr-test-print     -                    print a sample receipt
  *
- *  - Mobile / tablet ........ ESC/POS over Web Bluetooth (BLE POS printer).
- *                             Falls back to the system print dialog when
- *                             Bluetooth is unavailable or fails.
- *  - Desktop / laptop ....... System print dialog with an 80 mm thermal
- *                             layout (prints to the default/selected POS
- *                             printer).
+ * Window event emitted:
+ *   mr-print-status   { type: info|success|error, message }
  *
- * The paired Bluetooth printer is remembered (localStorage + the browser's
- * Web Bluetooth permission), so after the first pairing receipts print
- * without any prompt. The Web Bluetooth device chooser requires a user
- * gesture, so first-time pairing only happens from the manual button
- * (`manual: true` on the event detail).
+ * Print methods (localStorage `mr_print_method`):
+ *   auto      Bluetooth on mobile/tablet, system print dialog on desktop (default)
+ *   bluetooth ESC/POS over Web Bluetooth (BLE printers only)
+ *   rawbt     Hand ESC/POS to the RawBT Android app (Bluetooth *Classic* printers)
+ *   dialog    System print dialog (desktop POS printers)
+ *
+ * Web Bluetooth notes that shape this file:
+ *   - It only exists in a secure context (HTTPS), so an http:// deployment has
+ *     no `navigator.bluetooth` at all.
+ *   - Pairing the printer in Android's Bluetooth settings does NOT grant the
+ *     page access; the in-page chooser must be used once per device.
+ *   - `getDevices()` (silent re-access to an already-permitted printer) is
+ *     still behind a Chrome flag, so the connection is kept alive for the
+ *     session rather than relying on it.
  */
 
-const BT_DEVICE_KEY = 'mr_bt_printer_id';
+const KEY_METHOD = 'mr_print_method';
+const KEY_DEVICE = 'mr_bt_printer_id';
 
-/** Known write endpoints used by common BLE ESC/POS printers. */
-const BT_ENDPOINTS = [
-    { service: 0x18f0, characteristic: 0x2af1 },
-    { service: 0xffe0, characteristic: 0xffe1 },
-    { service: 0xfff0, characteristic: 0xfff2 },
-    { service: 'e7810a71-73ae-499d-8c15-faa9aef0c3f2', characteristic: 'bef8d6c9-9c21-4c9e-b632-bd58c1009f9f' },
+/**
+ * Services worth asking for on a BLE printer. `requestDevice` only grants
+ * access to services named here, so the list has to be generous — the actual
+ * writable characteristic is then discovered at runtime rather than assumed.
+ */
+const PRINTER_SERVICES = [
+    0x18f0, // common ESC/POS printer service
+    0xff00,
+    0xffe0,
+    0xffe5,
+    0xfff0,
+    0xff80,
+    0xffb0,
+    0xae30,
+    '49535343-fe7d-4ae5-8fa9-9fafd205e455', // ISSC / Microchip transparent UART
+    '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART
+    'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+    '0000fee7-0000-1000-8000-00805f9b34fb',
 ];
 
 /** Characters per line on a 58 mm printer (also fine on 80 mm). */
 const LINE_WIDTH = 32;
 
-let cachedDevice = null;
+/** Live connection, reused across receipts so printing stays instant. */
+let session = { device: null, characteristic: null };
+
+let printing = false;
 
 window.addEventListener('mr-print-receipt', (event) => {
     const receipt = event.detail?.receipt;
     if (! receipt || ! receipt.mrn) return;
 
-    handlePrint(receipt, event.detail?.manual === true);
+    print(receipt, event.detail?.manual === true);
 });
 
-async function handlePrint(receipt, manual) {
-    if (isMobileDevice() && navigator.bluetooth) {
-        try {
-            await printViaBluetooth(receipt, manual);
-            notify('Receipt sent to Bluetooth printer.');
+window.addEventListener('mr-pair-printer', () => pairPrinter());
+window.addEventListener('mr-test-print', (event) => print(sampleReceipt(event.detail?.company), true));
 
-            return;
-        } catch (error) {
-            // User dismissed the printer chooser — treat as a cancel, not an error.
-            if (manual && error?.name === 'NotFoundError') return;
+/* ── Status reporting ────────────────────────────────────────────────── */
 
-            console.warn('[receipt-printer] Bluetooth print failed, using system print dialog.', error);
-        }
-    }
+function status(type, message) {
+    window.dispatchEvent(new CustomEvent('mr-print-status', { detail: { type, message } }));
+}
 
-    printViaDialog(receipt);
+/* ── Routing ─────────────────────────────────────────────────────────── */
+
+function printMethod() {
+    return localStorage.getItem(KEY_METHOD) || 'auto';
 }
 
 function isMobileDevice() {
@@ -68,93 +87,296 @@ function isMobileDevice() {
     return /macintosh/i.test(ua) && navigator.maxTouchPoints > 1;
 }
 
-function notify(message) {
+async function print(receipt, manual) {
+    if (printing) return;
+
+    const method = printMethod();
+
+    if (method === 'dialog') return printViaDialog(receipt);
+    if (method === 'rawbt') return printViaRawBt(receipt);
+
+    const wantsBluetooth = method === 'bluetooth' || (method === 'auto' && isMobileDevice());
+
+    if (! wantsBluetooth) return printViaDialog(receipt);
+
+    if (! navigator.bluetooth) {
+        // On a phone the system print dialog cannot reach a POS printer, so
+        // say what is wrong instead of opening a dialog that leads nowhere.
+        if (isMobileDevice()) {
+            status('error', window.isSecureContext
+                ? 'This browser has no Bluetooth support. Use Chrome on Android, or switch the print method to RawBT.'
+                : 'Bluetooth printing requires HTTPS. Open the app over https:// or switch the print method.');
+
+            return;
+        }
+
+        return printViaDialog(receipt);
+    }
+
+    printing = true;
+    status('info', 'Sending to printer…');
+
     try {
-        window.Flux?.toast?.(message);
-    } catch {
-        /* toast is optional */
+        await printViaBluetooth(receipt, manual);
+        status('success', 'Receipt sent to the printer.');
+    } catch (error) {
+        handleBluetoothError(error, manual);
+    } finally {
+        printing = false;
     }
 }
 
-/* ── Bluetooth (ESC/POS) ─────────────────────────────────────────────── */
+function handleBluetoothError(error, manual) {
+    // Drop the connection but keep the device handle: re-pairing costs the
+    // user a tap, and `getDevices()` may not be there to recover it silently.
+    session.characteristic = null;
+
+    if (error?.name === 'NoWritableCharacteristic') {
+        session = { device: null, characteristic: null };
+        localStorage.removeItem(KEY_DEVICE);
+    }
+
+    // The user closed the chooser — not a failure worth shouting about.
+    if (manual && error?.name === 'NotFoundError') {
+        status('info', 'Printer selection cancelled.');
+
+        return;
+    }
+
+    console.warn('[receipt-printer] Bluetooth print failed.', error);
+
+    if (error?.name === 'NeedsPairing') {
+        status('error', 'No printer paired yet. Tap "Pair printer" and choose your printer.');
+
+        return;
+    }
+
+    if (error?.name === 'NotFoundError') {
+        status('error', 'Printer not found. Make sure it is switched on and in range, then pair it again.');
+
+        return;
+    }
+
+    if (error?.name === 'NoWritableCharacteristic') {
+        status('error', 'That device is not a supported BLE printer. If it is a Bluetooth Classic printer, switch the print method to RawBT.');
+
+        return;
+    }
+
+    if (error?.name === 'NetworkError' || error?.name === 'NotSupportedError') {
+        status('error', 'Could not connect to the printer. Close any other app using it, switch it off and on, then try again.');
+
+        return;
+    }
+
+    if (error?.name === 'SecurityError') {
+        status('error', 'Bluetooth is blocked for this page. Check Chrome\'s site permissions and that the app is served over HTTPS.');
+
+        return;
+    }
+
+    status('error', `Printing failed: ${error?.message || error}`);
+}
+
+/* ── Bluetooth (ESC/POS over BLE) ────────────────────────────────────── */
+
+async function pairPrinter() {
+    if (! navigator.bluetooth) {
+        status('error', window.isSecureContext
+            ? 'This browser has no Web Bluetooth support. Use Chrome on Android.'
+            : 'Bluetooth printing requires HTTPS. Open the app over https://.');
+
+        return;
+    }
+
+    try {
+        status('info', 'Select your printer…');
+
+        const device = await navigator.bluetooth.requestDevice({
+            acceptAllDevices: true,
+            optionalServices: PRINTER_SERVICES,
+        });
+
+        localStorage.setItem(KEY_DEVICE, device.id);
+        session = { device, characteristic: null };
+
+        // Connect straight away so an unsupported printer is caught here,
+        // during setup, rather than in the middle of a customer's payment.
+        await connect();
+
+        status('success', `Paired with ${device.name || 'printer'}. Try a test print.`);
+    } catch (error) {
+        handleBluetoothError(error, true);
+    }
+}
 
 async function printViaBluetooth(receipt, allowChooser) {
-    const device = await resolvePrinterDevice(allowChooser);
-
-    const server = await device.gatt.connect();
+    const bytes = buildEscPos(receipt);
 
     try {
-        const characteristic = await findWritableCharacteristic(server);
-        await writeInChunks(characteristic, buildEscPos(receipt));
-    } finally {
-        try {
-            device.gatt.disconnect();
-        } catch {
-            /* already disconnected */
+        await writeToPrinter(bytes, allowChooser);
+    } catch (error) {
+        // A stale connection (printer slept, drifted out of range) surfaces as
+        // a network error — reconnect to the same device and try once more.
+        if (error?.name === 'NetworkError' && session.device) {
+            session.characteristic = null;
+            await delay(500);
+            await writeToPrinter(bytes, allowChooser);
+
+            return;
         }
+
+        throw error;
     }
 }
 
-async function resolvePrinterDevice(allowChooser) {
-    if (cachedDevice?.gatt) return cachedDevice;
+async function writeToPrinter(bytes, allowChooser) {
+    const characteristic = await connect(allowChooser);
 
-    // Previously permitted printer (no prompt needed).
-    const savedId = localStorage.getItem(BT_DEVICE_KEY);
+    await writeInChunks(characteristic, bytes);
+
+    // Let the printer's buffer drain before the connection can drop.
+    await delay(400);
+}
+
+/** Resolve a connected, writable characteristic — reusing the live one. */
+async function connect(allowChooser = false) {
+    if (session.characteristic && session.device?.gatt?.connected) {
+        return session.characteristic;
+    }
+
+    const device = session.device ?? await resolveDevice(allowChooser);
+
+    // The first GATT connect after the printer wakes up often fails outright.
+    let server;
+    for (let attempt = 1; ; attempt++) {
+        try {
+            server = await device.gatt.connect();
+            break;
+        } catch (error) {
+            if (attempt >= 3) throw error;
+            await delay(600);
+        }
+    }
+
+    const characteristic = await findWritableCharacteristic(server);
+
+    device.addEventListener('gattserverdisconnected', () => {
+        session.characteristic = null;
+    }, { once: true });
+
+    session = { device, characteristic };
+
+    return characteristic;
+}
+
+async function resolveDevice(allowChooser) {
+    // Silent re-access to an already-permitted printer. Only works when
+    // chrome://flags/#enable-web-bluetooth-new-permissions-backend is on.
+    const savedId = localStorage.getItem(KEY_DEVICE);
     if (savedId && navigator.bluetooth.getDevices) {
         try {
             const devices = await navigator.bluetooth.getDevices();
             const known = devices.find((d) => d.id === savedId);
-            if (known) return (cachedDevice = known);
+            if (known) return known;
         } catch {
-            /* fall through to the chooser */
+            /* fall through */
         }
     }
 
     if (! allowChooser) {
-        throw new DOMException('No paired Bluetooth printer. Use the Print Receipt button to pair one.', 'NotAllowedError');
+        throw new DOMException('No paired printer available without a tap.', 'NeedsPairing');
     }
 
     const device = await navigator.bluetooth.requestDevice({
         acceptAllDevices: true,
-        optionalServices: BT_ENDPOINTS.map((e) => e.service),
+        optionalServices: PRINTER_SERVICES,
     });
 
-    localStorage.setItem(BT_DEVICE_KEY, device.id);
+    localStorage.setItem(KEY_DEVICE, device.id);
 
-    return (cachedDevice = device);
+    return device;
 }
 
+/**
+ * Printers vary wildly in which service/characteristic carries ESC/POS data,
+ * so discover it instead of hard-coding: walk every granted service and take
+ * the first characteristic that accepts writes.
+ */
 async function findWritableCharacteristic(server) {
-    for (const endpoint of BT_ENDPOINTS) {
-        try {
-            const service = await server.getPrimaryService(endpoint.service);
-            const characteristic = await service.getCharacteristic(endpoint.characteristic);
-            if (characteristic.properties.write || characteristic.properties.writeWithoutResponse) {
-                return characteristic;
+    let services = [];
+
+    try {
+        services = await server.getPrimaryServices();
+    } catch {
+        /* some stacks refuse bulk discovery — probed individually below */
+    }
+
+    if (services.length === 0) {
+        for (const uuid of PRINTER_SERVICES) {
+            try {
+                services.push(await server.getPrimaryService(uuid));
+            } catch {
+                /* not present on this printer */
             }
-        } catch {
-            /* try the next known endpoint */
         }
     }
 
-    throw new Error('No writable ESC/POS characteristic found on this printer.');
+    for (const service of services) {
+        let characteristics = [];
+
+        try {
+            characteristics = await service.getCharacteristics();
+        } catch {
+            continue;
+        }
+
+        // Prefer write-without-response: it is what printer firmware expects.
+        const writable = characteristics.find((c) => c.properties.writeWithoutResponse)
+            ?? characteristics.find((c) => c.properties.write);
+
+        if (writable) return writable;
+    }
+
+    throw new DOMException('No writable characteristic found.', 'NoWritableCharacteristic');
 }
 
 async function writeInChunks(characteristic, bytes) {
-    const CHUNK = 96;
+    // BLE's default ATT MTU allows only 20 payload bytes; anything larger is
+    // rejected or silently truncated on write-without-response. Chrome does a
+    // long-write for write-with-response, so that path can use bigger chunks.
+    const withoutResponse = characteristic.properties.writeWithoutResponse;
+    const size = withoutResponse ? 20 : 100;
 
-    for (let i = 0; i < bytes.length; i += CHUNK) {
-        const chunk = bytes.slice(i, i + CHUNK);
+    for (let i = 0; i < bytes.length; i += size) {
+        const chunk = bytes.slice(i, i + size);
 
-        if (characteristic.properties.writeWithoutResponse) {
+        if (withoutResponse && characteristic.writeValueWithoutResponse) {
             await characteristic.writeValueWithoutResponse(chunk);
+            await delay(20); // unacknowledged writes need pacing
+        } else if (characteristic.writeValueWithResponse) {
+            await characteristic.writeValueWithResponse(chunk);
         } else {
-            await characteristic.writeValue(chunk);
+            await characteristic.writeValue(chunk); // older Chrome
+            await delay(20);
         }
-
-        // Give the printer's small buffer time to drain.
-        await new Promise((resolve) => setTimeout(resolve, 30));
     }
+}
+
+function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/* ── RawBT (Bluetooth Classic printers on Android) ───────────────────── */
+
+function printViaRawBt(receipt) {
+    const bytes = buildEscPos(receipt);
+    let binary = '';
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+
+    status('info', 'Handing the receipt to RawBT…');
+
+    window.location.href = 'rawbt:base64,' + btoa(binary);
 }
 
 /* ── ESC/POS byte generation ─────────────────────────────────────────── */
@@ -287,6 +509,26 @@ function wrap(value, width = LINE_WIDTH) {
     if (current) lines.push(current);
 
     return lines;
+}
+
+function sampleReceipt(company) {
+    return {
+        company: company || 'Test Print',
+        mrn: 'TEST-0000000001',
+        date: new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        customer_id: 0,
+        customer_name: 'Test Customer',
+        username: 'test',
+        contact: '01700000000',
+        address: 'Test address line for wrapping check',
+        package: 'Test Package',
+        previous_due: 1000,
+        amount: 1000,
+        new_due: 0,
+        ledger: 'Cash',
+        received_by: 'Test',
+        recharge_months: 1,
+    };
 }
 
 /* ── System print dialog (desktop POS / fallback) ────────────────────── */

@@ -1,6 +1,7 @@
 <div
     class="mx-auto max-w-lg space-y-5"
     x-data="{
+        printStatus: null,
         init() {
             const l = localStorage.getItem('mr_ledger_id');
             if (l && ! $wire.ledgerId) $wire.set('ledgerId', l, false);
@@ -8,10 +9,35 @@
             if (r !== null) $wire.set('recharge', r === '1', false);
             const p = localStorage.getItem('mr_print_receipt');
             if (p !== null) $wire.set('printReceipt', p === '1', false);
+        },
+        showStatus(detail) {
+            this.printStatus = detail;
+            if (detail.type === 'success') {
+                setTimeout(() => { if (this.printStatus === detail) this.printStatus = null; }, 6000);
+            }
         }
     }"
     x-on:mr-focus-amount.window="$nextTick(() => { const el = document.getElementById('mr-amount'); if (el) { el.focus(); el.select(); } })"
+    x-on:mr-print-status.window="showStatus($event.detail)"
 >
+
+    {{-- Printer feedback — Web Bluetooth fails in ways only the user can fix. --}}
+    <div
+        x-show="printStatus"
+        style="display: none"
+        class="flex items-start gap-2 rounded-lg p-3 text-sm"
+        :class="{
+            'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400': printStatus?.type === 'success',
+            'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400': printStatus?.type === 'error',
+            'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300': printStatus?.type === 'info',
+        }"
+    >
+        <flux:icon name="printer" class="mt-0.5 size-4 shrink-0" />
+        <span class="flex-1" x-text="printStatus?.message"></span>
+        <button type="button" class="shrink-0 opacity-60" x-on:click="printStatus = null" aria-label="Dismiss">
+            <flux:icon name="x-mark" class="size-4" />
+        </button>
+    </div>
 
     <div>
         <flux:button :href="route('billing.bill-view')" wire:navigate size="sm" variant="ghost" icon="arrow-left">
@@ -147,11 +173,56 @@
                     </p>
                 </div>
 
-                <div class="mt-4" x-on:change="localStorage.setItem('mr_print_receipt', $event.target.checked ? '1' : '0')">
-                    <flux:checkbox wire:model="printReceipt" label="Print Receipt" />
-                    <p class="mt-1 pl-7 text-xs text-zinc-500">
-                        Print a POS receipt after saving — Bluetooth printer on mobile, system POS printer on desktop.
-                    </p>
+                <div class="mt-4" x-data="{ method: localStorage.getItem('mr_print_method') || 'auto' }">
+                    <div x-on:change="localStorage.setItem('mr_print_receipt', $event.target.checked ? '1' : '0')">
+                        <flux:checkbox wire:model="printReceipt" label="Print Receipt" />
+                        <p class="mt-1 pl-7 text-xs text-zinc-500">
+                            Print a POS receipt after saving — Bluetooth printer on mobile, system POS printer on desktop.
+                        </p>
+                    </div>
+
+                    <div
+                        x-show="$wire.printReceipt"
+                        style="display: none"
+                        class="mt-3 space-y-3 rounded-xl bg-zinc-50 p-3 dark:bg-zinc-800/50"
+                    >
+                        <flux:select
+                            x-model="method"
+                            x-on:change="localStorage.setItem('mr_print_method', $event.target.value)"
+                            label="Printer"
+                            size="sm"
+                            description="RawBT is for Bluetooth Classic printers that do not appear in the pairing list."
+                        >
+                            <flux:select.option value="auto">Automatic (Bluetooth on mobile, dialog on desktop)</flux:select.option>
+                            <flux:select.option value="bluetooth">Bluetooth POS printer</flux:select.option>
+                            <flux:select.option value="rawbt">RawBT app (Android)</flux:select.option>
+                            <flux:select.option value="dialog">System print dialog</flux:select.option>
+                        </flux:select>
+
+                        <div class="flex flex-col gap-2 sm:flex-row">
+                            <flux:button
+                                x-show="method === 'auto' || method === 'bluetooth'"
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                icon="link"
+                                class="min-h-[44px] w-full sm:w-auto"
+                                x-on:click="window.dispatchEvent(new CustomEvent('mr-pair-printer'))"
+                            >
+                                Pair printer
+                            </flux:button>
+                            <flux:button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                icon="printer"
+                                class="min-h-[44px] w-full sm:w-auto"
+                                x-on:click="window.dispatchEvent(new CustomEvent('mr-test-print', { detail: { company: @js(config('pwa.manifest.name', config('app.name'))) } }))"
+                            >
+                                Test print
+                            </flux:button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="mt-6">
