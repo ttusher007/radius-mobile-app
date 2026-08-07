@@ -4,6 +4,7 @@ namespace App\Livewire\Billing;
 
 use App\Models\TblPayment;
 use App\Services\DcmClient;
+use App\Support\AppSettings;
 use App\Support\ExpiryDateHelper;
 use App\Support\ResellerPermissionHelper;
 use Illuminate\Support\Carbon;
@@ -35,6 +36,8 @@ class MoneyReceipt extends Component
 
     public bool $recharge = true;
 
+    public bool $mandatoryRechargeCustomer = false;
+
     /**
      * Print a POS receipt after saving. The choice is persisted in the
      * browser's localStorage (see the view) so it survives across entries.
@@ -58,6 +61,8 @@ class MoneyReceipt extends Component
 
     public function mount(): void
     {
+        $this->syncRechargePolicy();
+
         if (trim($this->customerId) !== '') {
             $this->loadCustomer();
         }
@@ -163,6 +168,8 @@ class MoneyReceipt extends Component
 
     public function review(): void
     {
+        $this->syncRechargePolicy();
+
         $this->validate([
             'amount' => 'required|numeric|min:1',
             'ledgerId' => 'required',
@@ -195,6 +202,8 @@ class MoneyReceipt extends Component
 
     public function back(): void
     {
+        $this->syncRechargePolicy();
+
         $this->step = 'form';
     }
 
@@ -205,13 +214,15 @@ class MoneyReceipt extends Component
         }
 
         $this->processing = true;
+        $recharge = $this->effectiveRecharge();
+        $this->recharge = $recharge;
 
         $response = app(DcmClient::class)->moneyReceipt([
             'customer_id' => (int) $this->customer['id'],
             'amount' => (float) $this->amount,
             'ledger_id' => (int) $this->ledgerId,
             'user_id' => (int) auth()->id(),
-            'recharge' => $this->recharge,
+            'recharge' => $recharge,
             'mrn' => $this->mrn,
         ]);
 
@@ -274,7 +285,13 @@ class MoneyReceipt extends Component
     public function newEntry(): void
     {
         $this->reset('customer', 'customerId', 'amount', 'searched', 'lookupError', 'result', 'mrn');
+        $this->syncRechargePolicy();
         $this->step = 'form';
+    }
+
+    public function updatedRecharge(): void
+    {
+        $this->syncRechargePolicy();
     }
 
     public function render()
@@ -304,6 +321,29 @@ class MoneyReceipt extends Component
         } while (TblPayment::where('mrn', $mrn)->exists());
 
         return $mrn;
+    }
+
+    private function syncRechargePolicy(): void
+    {
+        $this->mandatoryRechargeCustomer = AppSettings::mandatoryRechargeCustomer();
+
+        if ($this->mandatoryRechargeCustomer) {
+            $this->recharge = true;
+        }
+    }
+
+    private function effectiveRecharge(): bool
+    {
+        if (AppSettings::mandatoryRechargeCustomer()) {
+            $this->mandatoryRechargeCustomer = true;
+            $this->recharge = true;
+
+            return true;
+        }
+
+        $this->mandatoryRechargeCustomer = false;
+
+        return $this->recharge;
     }
 
     private function formatAddress(object $row): string

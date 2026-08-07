@@ -5,8 +5,13 @@
         init() {
             const l = localStorage.getItem('mr_ledger_id');
             if (l && ! $wire.ledgerId) $wire.set('ledgerId', l, false);
-            const r = localStorage.getItem('mr_recharge');
-            if (r !== null) $wire.set('recharge', r === '1', false);
+            if (@js($mandatoryRechargeCustomer)) {
+                localStorage.setItem('mr_recharge', '1');
+                $wire.set('recharge', true, false);
+            } else {
+                const r = localStorage.getItem('mr_recharge');
+                if (r !== null) $wire.set('recharge', r === '1', false);
+            }
             const p = localStorage.getItem('mr_print_receipt');
             if (p !== null) $wire.set('printReceipt', p === '1', false);
         },
@@ -166,10 +171,14 @@
                     <flux:error name="amount" />
                 </div>
 
-                <div class="mt-4" x-on:change="localStorage.setItem('mr_recharge', $event.target.checked ? '1' : '0')">
-                    <flux:checkbox wire:model="recharge" label="Recharge Customer" />
+                <div class="mt-4" x-on:change="if (! @js($mandatoryRechargeCustomer)) localStorage.setItem('mr_recharge', $event.target.checked ? '1' : '0')">
+                    <flux:checkbox wire:model="recharge" label="Recharge Customer" @disabled($mandatoryRechargeCustomer) />
                     <p class="mt-1 pl-7 text-xs text-zinc-500">
-                        Extend validity, enable if disabled, top up manager/POP, generate bill &amp; notify.
+                        @if ($mandatoryRechargeCustomer)
+                            Required by admin setting. Extend validity, enable if disabled, top up manager/POP, generate bill &amp; notify.
+                        @else
+                            Extend validity, enable if disabled, top up manager/POP, generate bill &amp; notify.
+                        @endif
                     </p>
                 </div>
 

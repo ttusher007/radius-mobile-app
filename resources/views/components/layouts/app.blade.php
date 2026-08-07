@@ -60,6 +60,7 @@
                     ['icon' => 'document-text', 'label' => 'Bill View', 'href' => route('billing.bill-view'), 'route' => 'billing.bill-view', 'visible' => \App\Support\BillingScope::hasAnyScope()],
                     ['icon' => 'banknotes', 'label' => 'Money Receipt', 'href' => route('billing.money-receipt'), 'route' => 'billing.money-receipt', 'visible' => \App\Support\AccessHelper::any(['money-receipt-entry', 'money-receipt-entry-admin', 'super-admin', 'perm_all_manager'])],
                     ['icon' => 'chart-bar', 'label' => 'Collection Report', 'href' => route('reports.collection'), 'route' => 'reports.collection', 'visible' => \App\Support\AccessHelper::any(['report_mac-payment', 'super-admin', 'perm_all_manager'])],
+                    ['icon' => 'cog-6-tooth', 'label' => 'Billing Settings', 'href' => route('settings.billing'), 'route' => 'settings.billing', 'visible' => \App\Support\AccessHelper::any(['settings_update', 'settings_edit', 'super-admin'])],
                 ], fn ($item) => $item['visible']));
             @endphp
 

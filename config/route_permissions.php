@@ -33,4 +33,13 @@ return [
         ],
         'require_scope' => true,
     ],
+
+    'settings.billing' => [
+        'label' => 'Billing Settings',
+        'any' => [
+            'settings_update',
+            'settings_edit',
+            'super-admin',
+        ],
+    ],
 ];
