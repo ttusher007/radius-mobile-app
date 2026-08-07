@@ -172,7 +172,11 @@
                 </div>
 
                 <div class="mt-4" x-on:change="if (! @js($mandatoryRechargeCustomer)) localStorage.setItem('mr_recharge', $event.target.checked ? '1' : '0')">
-                    <flux:checkbox wire:model="recharge" label="Recharge Customer" @disabled($mandatoryRechargeCustomer) />
+                    @if ($mandatoryRechargeCustomer)
+                        <flux:checkbox wire:model="recharge" label="Recharge Customer" disabled />
+                    @else
+                        <flux:checkbox wire:model="recharge" label="Recharge Customer" />
+                    @endif
                     <p class="mt-1 pl-7 text-xs text-zinc-500">
                         @if ($mandatoryRechargeCustomer)
                             Required by admin setting. Extend validity, enable if disabled, top up manager/POP, generate bill &amp; notify.
