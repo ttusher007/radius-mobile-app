@@ -20,12 +20,58 @@
                 </p>
             </div>
 
+            <flux:separator />
+
+            <div>
+                <flux:heading size="sm">Tax Invoice (MUSHAK-6.3) Header</flux:heading>
+                <p class="mt-1 text-xs text-zinc-500">
+                    Printed at the top of every money receipt, above the memo.
+                </p>
+            </div>
+
+            <flux:input
+                wire:model="registeredPersonName"
+                label="Registered Person Name"
+                placeholder="e.g. Example Networks Ltd."
+            />
+
+            <flux:input
+                wire:model="bin"
+                label="BIN Number"
+                placeholder="e.g. 000000000-0000"
+                inputmode="numeric"
+            />
+
+            <flux:textarea
+                wire:model="invoiceIssuingAddress"
+                label="Invoice Issuing Address"
+                rows="3"
+                placeholder="House, road, area, city"
+            />
+
+            {{-- Logo is server-specific and git-ignored, so it is uploaded by
+                 hand rather than through the app. --}}
+            <div class="rounded-xl bg-zinc-50 p-4 dark:bg-zinc-800/50">
+                <flux:heading size="sm">Company Logo</flux:heading>
+                @if ($logoUrl)
+                    <div class="mt-3 flex items-center gap-3">
+                        <img src="{{ $logoUrl }}" alt="Company logo" class="h-12 w-auto bg-white p-1" />
+                        <flux:badge size="sm" color="green">Uploaded</flux:badge>
+                    </div>
+                @else
+                    <flux:badge size="sm" color="zinc" class="mt-3">Not uploaded</flux:badge>
+                @endif
+                <p class="mt-3 text-xs break-all text-zinc-500">
+                    Upload a monochrome PNG to <code class="font-mono">{{ $logoPath }}</code> on this server.
+                </p>
+            </div>
+
             <div class="flex justify-end">
                 <flux:button
                     type="submit"
                     variant="primary"
                     icon="check"
-                    class="min-h-[44px]"
+                    class="min-h-[44px] w-full sm:w-auto"
                     wire:loading.attr="disabled"
                     wire:target="save"
                 >

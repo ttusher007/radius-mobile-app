@@ -138,7 +138,20 @@
         @if ($step === 'form')
             <flux:card class="p-5">
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <flux:input label="Date" value="{{ now()->format('d M Y') }}" readonly />
+                    @if ($this->canSelectDate)
+                        <div>
+                            <flux:input
+                                wire:model="receiptDate"
+                                label="Date"
+                                type="date"
+                                max="{{ now()->format('Y-m-d') }}"
+                                class="min-h-[44px]"
+                            />
+                            <flux:error name="receiptDate" />
+                        </div>
+                    @else
+                        <flux:input label="Date" value="{{ now()->format('d M Y') }}" readonly />
+                    @endif
 
                     <div x-on:change="localStorage.setItem('mr_ledger_id', $event.target.value)">
                         <flux:select wire:model="ledgerId" label="Ledger">
@@ -241,7 +254,7 @@
                                 variant="outline"
                                 icon="printer"
                                 class="min-h-[44px] w-full sm:w-auto"
-                                x-on:click="window.dispatchEvent(new CustomEvent('mr-test-print', { detail: { company: @js(config('pwa.manifest.name', config('app.name'))) } }))"
+                                x-on:click="window.dispatchEvent(new CustomEvent('mr-test-print', { detail: @js($receiptHeader) }))"
                             >
                                 Test print
                             </flux:button>
@@ -284,7 +297,9 @@
                     </div>
                     <div class="flex items-center justify-between py-2.5">
                         <dt class="text-sm text-zinc-500">Date</dt>
-                        <dd class="text-sm font-medium text-zinc-900 dark:text-white">{{ now()->format('d M Y') }}</dd>
+                        <dd class="text-sm font-medium text-zinc-900 dark:text-white">
+                            {{ \Illuminate\Support\Carbon::parse($receiptDate)->format('d M Y') }}
+                        </dd>
                     </div>
                     <div class="flex items-center justify-between py-2.5">
                         <dt class="text-sm text-zinc-500">Recharge customer</dt>

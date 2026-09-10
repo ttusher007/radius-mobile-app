@@ -9,6 +9,7 @@ use App\Support\ExpiryDateHelper;
 use App\Support\ResellerPermissionHelper;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -18,6 +19,9 @@ use Livewire\Component;
 #[Title('Money Receipt')]
 class MoneyReceipt extends Component
 {
+    /** Permission that unlocks the receipt date picker. */
+    private const DATE_SELECT_PERMISSION = 'perm_entry-mr-allow-date-select';
+
     /** Search box value. */
     public string $customerId = '';
 
@@ -37,6 +41,12 @@ class MoneyReceipt extends Component
     public bool $recharge = true;
 
     public bool $mandatoryRechargeCustomer = false;
+
+    /**
+     * Receipt date (Y-m-d). Editable only by users holding
+     * `perm_entry-mr-allow-date-select`; everyone else is pinned to today.
+     */
+    public string $receiptDate = '';
 
     /**
      * Print a POS receipt after saving. The choice is persisted in the
@@ -62,10 +72,20 @@ class MoneyReceipt extends Component
     public function mount(): void
     {
         $this->syncRechargePolicy();
+        $this->receiptDate = $this->resolveReceiptDate();
 
         if (trim($this->customerId) !== '') {
             $this->loadCustomer();
         }
+    }
+
+    /**
+     * May this user back-date / forward-date a receipt?
+     */
+    #[Computed]
+    public function canSelectDate(): bool
+    {
+        return Gate::allows(self::DATE_SELECT_PERMISSION);
     }
 
     /**
@@ -170,13 +190,20 @@ class MoneyReceipt extends Component
     {
         $this->syncRechargePolicy();
 
+        // Users without the permission can never move the date off today,
+        // whatever the browser sent.
+        $this->receiptDate = $this->resolveReceiptDate();
+
         $this->validate([
             'amount' => 'required|numeric|min:1',
             'ledgerId' => 'required',
+            'receiptDate' => 'required|date_format:Y-m-d',
         ], [
             'amount.required' => 'Enter the amount received.',
             'amount.min' => 'Amount must be at least 1.',
             'ledgerId.required' => 'Select a ledger.',
+            'receiptDate.required' => 'Select a receipt date.',
+            'receiptDate.date_format' => 'Select a valid receipt date.',
         ]);
 
         if (! $this->customer) {
@@ -203,6 +230,7 @@ class MoneyReceipt extends Component
     public function back(): void
     {
         $this->syncRechargePolicy();
+        $this->receiptDate = $this->resolveReceiptDate();
 
         $this->step = 'form';
     }
@@ -216,6 +244,7 @@ class MoneyReceipt extends Component
         $this->processing = true;
         $recharge = $this->effectiveRecharge();
         $this->recharge = $recharge;
+        $this->receiptDate = $this->resolveReceiptDate();
 
         $response = app(DcmClient::class)->moneyReceipt([
             'customer_id' => (int) $this->customer['id'],
@@ -224,6 +253,7 @@ class MoneyReceipt extends Component
             'user_id' => (int) auth()->id(),
             'recharge' => $recharge,
             'mrn' => $this->mrn,
+            'date' => $this->receiptDateTime()->format('Y-m-d H:i:s'),
         ]);
 
         $body = $response['body'];
@@ -264,9 +294,10 @@ class MoneyReceipt extends Component
         $amount = isset($body['amount']) ? (float) $body['amount'] : (float) $this->amount;
 
         return [
-            'company' => (string) config('pwa.manifest.name', config('app.name')),
+            // MUSHAK-6.3 tax invoice header (see Billing Settings).
+            ...$this->receiptHeader(),
             'mrn' => (string) ($body['mrn'] ?? $this->mrn),
-            'date' => now()->format('d M Y, h:i A'),
+            'date' => $this->receiptDateTime()->format('d M Y, h:i A'),
             'customer_id' => (int) $this->customer['id'],
             'customer_name' => (string) ($this->customer['name'] ?? ''),
             'username' => (string) ($this->customer['username'] ?? ''),
@@ -286,6 +317,7 @@ class MoneyReceipt extends Component
     {
         $this->reset('customer', 'customerId', 'amount', 'searched', 'lookupError', 'result', 'mrn');
         $this->syncRechargePolicy();
+        $this->receiptDate = $this->resolveReceiptDate();
         $this->step = 'form';
     }
 
@@ -296,7 +328,59 @@ class MoneyReceipt extends Component
 
     public function render()
     {
-        return view('livewire.billing.money-receipt');
+        return view('livewire.billing.money-receipt', [
+            'receiptHeader' => $this->receiptHeader(),
+        ]);
+    }
+
+    /**
+     * MUSHAK-6.3 tax invoice header, shared by the printed receipt and the
+     * "Test print" button.
+     *
+     * @return array<string, mixed>
+     */
+    private function receiptHeader(): array
+    {
+        return [
+            'company' => (string) config('pwa.manifest.name', config('app.name')),
+            'logo_url' => AppSettings::logoUrl(),
+            'registered_person_name' => AppSettings::registeredPersonName(),
+            'bin' => AppSettings::bin(),
+            'invoice_issuing_address' => AppSettings::invoiceIssuingAddress(),
+        ];
+    }
+
+    /**
+     * The effective receipt date: the picked date for permitted users,
+     * today for everyone else.
+     */
+    private function resolveReceiptDate(): string
+    {
+        $today = Carbon::today()->toDateString();
+
+        if (! $this->canSelectDate()) {
+            return $today;
+        }
+
+        try {
+            return Carbon::createFromFormat('Y-m-d', trim($this->receiptDate))->toDateString();
+        } catch (\Throwable) {
+            return $today;
+        }
+    }
+
+    /**
+     * Receipt date carrying the current wall-clock time, so a back-dated
+     * entry still records a sensible timestamp.
+     */
+    private function receiptDateTime(): Carbon
+    {
+        $now = Carbon::now();
+        $date = Carbon::parse($this->resolveReceiptDate());
+
+        return $date->isSameDay($now)
+            ? $now
+            : $date->setTimeFrom($now);
     }
 
     /**

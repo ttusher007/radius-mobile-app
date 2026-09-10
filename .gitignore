@@ -18,6 +18,8 @@
 /public/fonts-manifest.dev.json
 /public/hot
 /public/logo.png
+/public/branding/*
+!/public/branding/.gitkeep
 /public/storage
 /storage/*.key
 /storage/pail

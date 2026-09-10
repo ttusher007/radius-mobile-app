@@ -51,6 +51,20 @@ const PRINTER_SERVICES = [
 /** Characters per line on a 58 mm printer (also fine on 80 mm). */
 const LINE_WIDTH = 32;
 
+/** Fixed MUSHAK-6.3 heading lines, printed above the memo. */
+const NBR_HEADING = [
+    "Government of the People's Republic of Bangladesh",
+    'National Board of Revenue, Dhaka',
+    'MUSHAK- 6.3',
+];
+
+/** Logo raster limits — wide enough to read, small enough to send over BLE. */
+const LOGO_MAX_DOTS = 256; // must be a multiple of 8
+const LOGO_MAX_ROWS = 96;
+
+/** Cache of the converted logo, keyed by URL — conversion happens once. */
+const logoCache = new Map();
+
 /** Live connection, reused across receipts so printing stays instant. */
 let session = { device: null, characteristic: null };
 
@@ -64,7 +78,7 @@ window.addEventListener('mr-print-receipt', (event) => {
 });
 
 window.addEventListener('mr-pair-printer', () => pairPrinter());
-window.addEventListener('mr-test-print', (event) => print(sampleReceipt(event.detail?.company), true));
+window.addEventListener('mr-test-print', (event) => print(sampleReceipt(event.detail), true));
 
 /* ── Status reporting ────────────────────────────────────────────────── */
 
@@ -211,7 +225,7 @@ async function pairPrinter() {
 }
 
 async function printViaBluetooth(receipt, allowChooser) {
-    const bytes = buildEscPos(receipt);
+    const bytes = await buildEscPos(receipt);
 
     try {
         await writeToPrinter(bytes, allowChooser);
@@ -369,8 +383,8 @@ function delay(ms) {
 
 /* ── RawBT (Bluetooth Classic printers on Android) ───────────────────── */
 
-function printViaRawBt(receipt) {
-    const bytes = buildEscPos(receipt);
+async function printViaRawBt(receipt) {
+    const bytes = await buildEscPos(receipt);
     let binary = '';
     for (const byte of bytes) binary += String.fromCharCode(byte);
 
@@ -381,7 +395,7 @@ function printViaRawBt(receipt) {
 
 /* ── ESC/POS byte generation ─────────────────────────────────────────── */
 
-function buildEscPos(r) {
+async function buildEscPos(r) {
     const out = [];
     const push = (...codes) => out.push(...codes);
     const text = (line = '') => {
@@ -396,6 +410,35 @@ function buildEscPos(r) {
     const doubleSize = (on) => push(0x1d, 0x21, on ? 0x11 : 0x00);
 
     push(0x1b, 0x40); // initialize
+
+    /* ── MUSHAK-6.3 tax invoice header (NBR, Bangladesh) ───────────── */
+
+    align(1);
+
+    const logo = await logoRaster(r.logo_url);
+    if (logo) {
+        for (const byte of logo) push(byte);
+        push(0x0a);
+    }
+
+    for (const line of NBR_HEADING) text(line);
+
+    // "TAX INVOICE" — bold and a size up from the surrounding text.
+    bold(true);
+    push(0x1d, 0x21, 0x01); // double height
+    text('TAX INVOICE');
+    push(0x1d, 0x21, 0x00);
+    bold(false);
+
+    text('[Ref Rule 40, (1) (Gha) & (Cha)]');
+
+    align(0);
+    labelled(text, 'Registered Person Name', r.registered_person_name);
+    labelled(text, 'BIN NUMBER', r.bin);
+    labelled(text, 'Invoice Issuing Address', r.invoice_issuing_address);
+    text(divider());
+
+    /* ── Memo ──────────────────────────────────────────────────────── */
 
     align(1);
     bold(true);
@@ -436,6 +479,111 @@ function buildEscPos(r) {
     push(0x1d, 0x56, 0x42, 0x00); // partial cut (ignored by cutter-less printers)
 
     return new Uint8Array(out);
+}
+
+/**
+ * Convert the company logo into an ESC/POS raster block (GS v 0).
+ *
+ * Thermal printers are 1-bit devices, so the image is scaled down, drawn on a
+ * white canvas (to flatten transparency) and thresholded to pure black/white.
+ * Returns NULL when there is no logo, or when it cannot be read — a missing
+ * logo must never stop a customer's receipt from printing.
+ */
+async function logoRaster(url) {
+    if (! url) return null;
+    if (logoCache.has(url)) return logoCache.get(url);
+
+    let bytes = null;
+
+    try {
+        bytes = await convertLogo(url);
+    } catch (error) {
+        console.warn('[receipt-printer] Logo could not be rasterised.', error);
+    }
+
+    logoCache.set(url, bytes);
+
+    return bytes;
+}
+
+async function convertLogo(url) {
+    const image = await loadImage(url);
+
+    const scale = Math.min(LOGO_MAX_DOTS / image.width, LOGO_MAX_ROWS / image.height, 1);
+    // Width must land on a byte boundary — the raster command works in bytes.
+    const width = Math.max(8, Math.floor((image.width * scale) / 8) * 8);
+    const height = Math.max(1, Math.round(image.height * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(image, 0, 0, width, height);
+
+    const pixels = ctx.getImageData(0, 0, width, height).data;
+    const bytesPerRow = width / 8;
+    const raster = new Uint8Array(bytesPerRow * height);
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const i = (y * width + x) * 4;
+            const alpha = pixels[i + 3] / 255;
+            // Composite over white, then take luminance.
+            const luma = (0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2]) * alpha
+                + 255 * (1 - alpha);
+
+            if (luma < 160) {
+                raster[y * bytesPerRow + Math.floor(x / 8)] |= 0x80 >> (x % 8);
+            }
+        }
+    }
+
+    // GS v 0 m xL xH yL yH — raster bit image, normal mode.
+    const header = [
+        0x1d, 0x76, 0x30, 0x00,
+        bytesPerRow & 0xff, (bytesPerRow >> 8) & 0xff,
+        height & 0xff, (height >> 8) & 0xff,
+    ];
+
+    const out = new Uint8Array(header.length + raster.length);
+    out.set(header, 0);
+    out.set(raster, header.length);
+
+    return out;
+}
+
+function loadImage(url) {
+    return new Promise((resolve, reject) => {
+        const image = new Image();
+        image.crossOrigin = 'anonymous'; // keep the canvas untainted
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error(`Could not load logo: ${url}`));
+        image.src = url;
+    });
+}
+
+/**
+ * `Label: value` on one line when it fits, otherwise the label on its own
+ * line with the value wrapped and indented beneath it. Used for the NBR
+ * header, whose labels are too long for kv()'s fixed column.
+ */
+function labelled(text, label, value) {
+    const clean = sanitizeAscii(value).trim();
+    if (! clean) return;
+
+    const oneLine = `${label}: ${clean}`;
+
+    if (oneLine.length <= LINE_WIDTH) {
+        text(oneLine);
+
+        return;
+    }
+
+    text(`${label}:`);
+    for (const line of wrap(clean, LINE_WIDTH - 2)) text('  ' + line);
 }
 
 function kv(text, label, value) {
@@ -511,9 +659,14 @@ function wrap(value, width = LINE_WIDTH) {
     return lines;
 }
 
-function sampleReceipt(company) {
+function sampleReceipt(detail = {}) {
     return {
-        company: company || 'Test Print',
+        company: detail?.company || 'Test Print',
+        // Header comes from Billing Settings so a test print proves it out.
+        logo_url: detail?.logo_url || null,
+        registered_person_name: detail?.registered_person_name || 'Test Registered Person',
+        bin: detail?.bin || '000000000-0000',
+        invoice_issuing_address: detail?.invoice_issuing_address || 'Test issuing address, Dhaka',
         mrn: 'TEST-0000000001',
         date: new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
         customer_id: 0,
@@ -549,10 +702,27 @@ function printViaDialog(receipt) {
     iframe.contentWindow.addEventListener('afterprint', () => setTimeout(cleanup, 250));
     setTimeout(cleanup, 60_000); // safety net if afterprint never fires
 
-    setTimeout(() => {
+    // Wait for the logo to decode — printing early leaves a blank gap where
+    // the image should be.
+    imagesReady(doc).then(() => {
         iframe.contentWindow.focus();
         iframe.contentWindow.print();
-    }, 150);
+    });
+}
+
+/** Resolves once every image in the document has settled (or after 3s). */
+function imagesReady(doc) {
+    const images = Array.from(doc.images ?? []);
+
+    const settled = Promise.all(images.map((image) => image.complete
+        ? Promise.resolve()
+        : new Promise((resolve) => {
+            image.addEventListener('load', resolve, { once: true });
+            image.addEventListener('error', resolve, { once: true });
+        })));
+
+    // A logo that never loads must not block the receipt.
+    return Promise.race([settled, delay(3000)]).then(() => delay(150));
 }
 
 function receiptHtml(r) {
@@ -577,6 +747,9 @@ function receiptHtml(r) {
 <style>
     @page { size: 80mm auto; margin: 0; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    /* The memo must print 100% black — never a grey the printer dithers. */
+    html, body, body * { color: #000 !important; }
+    html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     body {
         width: 72mm;
         margin: 0 auto;
@@ -587,6 +760,13 @@ function receiptHtml(r) {
         color: #000;
         background: #fff;
     }
+    .logo { display: block; margin: 0 auto 3px; max-width: 40mm; max-height: 18mm; }
+    .gov { font-size: 11px; line-height: 1.3; }
+    .mushak { font-size: 12px; font-weight: 700; margin-top: 2px; }
+    .tax-invoice { font-size: 15px; font-weight: 700; letter-spacing: .5px; margin: 2px 0; }
+    .rule-ref { font-size: 10px; }
+    .nbr-meta { margin-top: 4px; font-size: 11px; }
+    .nbr-meta td.l { width: 48%; }
     .center { text-align: center; }
     .company { font-size: 16px; font-weight: 700; }
     .subtitle { font-size: 12px; margin-bottom: 4px; }
@@ -601,6 +781,21 @@ function receiptHtml(r) {
 </style>
 </head>
 <body>
+    <!-- MUSHAK-6.3 tax invoice header -->
+    ${r.logo_url ? `<img class="logo" src="${esc(r.logo_url)}" alt="">` : ''}
+    <div class="center gov">Government of the People's Republic of Bangladesh</div>
+    <div class="center gov">National Board of Revenue, Dhaka</div>
+    <div class="center mushak">MUSHAK- 6.3</div>
+    <div class="center tax-invoice">TAX INVOICE</div>
+    <div class="center rule-ref">[Ref Rule 40, (1) (Gha) &amp; (Cha)]</div>
+    <table class="nbr-meta">
+        ${metaRow('Registered Person Name', r.registered_person_name)}
+        ${metaRow('BIN NUMBER', r.bin)}
+        ${metaRow('Invoice Issuing Address', r.invoice_issuing_address)}
+    </table>
+    <hr class="rule">
+
+    <!-- Memo -->
     <div class="center company">${esc(r.company)}</div>
     <div class="center subtitle">Money Receipt</div>
     <hr class="rule">
