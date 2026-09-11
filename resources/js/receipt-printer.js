@@ -411,6 +411,10 @@ async function buildEscPos(r) {
 
     push(0x1b, 0x40); // initialize
 
+    // Emphasised mode for the whole receipt: normal-weight thermal text
+    // prints faint/grey, bold prints solid black.
+    bold(true);
+
     /* ── MUSHAK-6.3 tax invoice header (NBR, Bangladesh) ───────────── */
 
     align(1);
@@ -423,12 +427,10 @@ async function buildEscPos(r) {
 
     for (const line of NBR_HEADING) text(line);
 
-    // "TAX INVOICE" — bold and a size up from the surrounding text.
-    bold(true);
+    // "TAX INVOICE" — a size up from the surrounding text.
     push(0x1d, 0x21, 0x01); // double height
     text('TAX INVOICE');
     push(0x1d, 0x21, 0x00);
-    bold(false);
 
     text('[Ref Rule 40, (1) (Gha) & (Cha)]');
 
@@ -441,12 +443,10 @@ async function buildEscPos(r) {
     /* ── Memo ──────────────────────────────────────────────────────── */
 
     align(1);
-    bold(true);
     doubleSize(true);
     // Double-width text fits half as many characters per line.
     for (const line of wrap(r.company, LINE_WIDTH / 2)) text(line);
     doubleSize(false);
-    bold(false);
     text('Money Receipt');
 
     align(0);
@@ -461,9 +461,10 @@ async function buildEscPos(r) {
     if (r.address) kv(text, 'Address', r.address);
     text(divider());
     text(moneyRow('Previous Due', r.previous_due));
-    bold(true);
+    // Double height only — width is unchanged, so the row still fits LINE_WIDTH.
+    push(0x1d, 0x21, 0x01);
     text(moneyRow('Paid Amount', r.amount));
-    bold(false);
+    push(0x1d, 0x21, 0x00);
     text(moneyRow('Current Due', r.new_due));
     if (r.recharge_months > 0) kv(text, 'Recharged', `${r.recharge_months} month(s)`);
     text(divider());
@@ -747,8 +748,10 @@ function receiptHtml(r) {
 <style>
     @page { size: 80mm auto; margin: 0; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    /* The memo must print 100% black — never a grey the printer dithers. */
-    html, body, body * { color: #000 !important; }
+    /* The memo must print 100% black — never a grey the printer dithers.
+       Thermal printers render thin normal-weight strokes faint, so every
+       line is bold. */
+    html, body, body * { color: #000 !important; font-weight: 700 !important; }
     html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     body {
         width: 72mm;
@@ -770,7 +773,7 @@ function receiptHtml(r) {
     .center { text-align: center; }
     .company { font-size: 16px; font-weight: 700; }
     .subtitle { font-size: 12px; margin-bottom: 4px; }
-    .rule { border: 0; border-top: 1px dashed #000; margin: 5px 0; }
+    .rule { border: 0; border-top: 2px dashed #000; margin: 5px 0; }
     table { width: 100%; border-collapse: collapse; }
     td { vertical-align: top; padding: 1px 0; }
     td.l { width: 34%; }
