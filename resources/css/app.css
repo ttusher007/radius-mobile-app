@@ -9,3 +9,50 @@
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
+
+/*
+ * Money Receipt: pure black text (pure white in dark mode) instead of Flux's
+ * built-in greys — labels, descriptions, headings, text, input/select values
+ * and grey buttons/badges. Unlayered, so it wins over Tailwind utilities.
+ * Status colours (red/amber/emerald) and primary-button text are untouched.
+ */
+.mr-text-black
+    :is(
+        [data-flux-label],
+        [data-flux-description],
+        [data-flux-heading],
+        [data-flux-text]:not([data-color], [color]),
+        input[data-flux-control],
+        select[data-flux-control],
+        [class~='text-zinc-300'],
+        [class~='text-zinc-400'],
+        [class~='text-zinc-500'],
+        [class~='text-zinc-600'],
+        [class~='text-zinc-700'],
+        [class~='text-zinc-800'],
+        [class~='text-zinc-900']
+    ) {
+    color: #000;
+    -webkit-text-fill-color: currentColor;
+}
+
+@media (prefers-color-scheme: dark) {
+    .mr-text-black
+        :is(
+            [data-flux-label],
+            [data-flux-description],
+            [data-flux-heading],
+            [data-flux-text]:not([data-color], [color]),
+            input[data-flux-control],
+            select[data-flux-control],
+            [class~='text-zinc-300'],
+            [class~='text-zinc-400'],
+            [class~='text-zinc-500'],
+            [class~='text-zinc-600'],
+            [class~='text-zinc-700'],
+            [class~='text-zinc-800'],
+            [class~='text-zinc-900']
+        ) {
+        color: #fff;
+    }
+}

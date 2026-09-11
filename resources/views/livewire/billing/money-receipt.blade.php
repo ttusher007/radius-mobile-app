@@ -1,5 +1,5 @@
 <div
-    class="mx-auto max-w-lg space-y-5"
+    class="mr-text-black mx-auto max-w-lg space-y-5"
     x-data="{
         printStatus: null,
         init() {
@@ -34,7 +34,7 @@
         :class="{
             'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400': printStatus?.type === 'success',
             'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400': printStatus?.type === 'error',
-            'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300': printStatus?.type === 'info',
+            'bg-zinc-100 text-black dark:bg-zinc-800 dark:text-white': printStatus?.type === 'info',
         }"
     >
         <flux:icon name="printer" class="mt-0.5 size-4 shrink-0" />
@@ -103,28 +103,28 @@
                             <flux:badge size="sm" color="zinc" inset="top bottom">Closed</flux:badge>
                         @endif
                     </div>
-                    <p class="mt-0.5 text-sm text-zinc-500">
+                    <p class="mt-0.5 text-sm text-black dark:text-white">
                         <span class="font-mono">{{ $customer['username'] }}</span>
-                        <span class="text-zinc-300 dark:text-zinc-600">·</span>
+                        <span class="text-black dark:text-white">·</span>
                         ID {{ $customer['id'] }}
                     </p>
                 </div>
                 <div class="shrink-0 text-right">
-                    <p class="text-xs text-zinc-400">Current Due</p>
+                    <p class="text-xs text-black dark:text-white">Current Due</p>
                     <p class="text-lg font-bold text-amber-600 dark:text-amber-400">৳{{ number_format($customer['due']) }}</p>
                 </div>
             </div>
 
             <dl class="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                <div><dt class="text-xs text-zinc-400">Package</dt><dd class="text-zinc-700 dark:text-zinc-300">{{ $customer['package'] ?: '—' }}</dd></div>
-                <div><dt class="text-xs text-zinc-400">Monthly Bill</dt><dd class="text-zinc-700 dark:text-zinc-300">৳{{ number_format($customer['bill_amount']) }}</dd></div>
-                <div><dt class="text-xs text-zinc-400">Current Expiry Date</dt><dd><x-expiry-date :date="$customer['expiry_date']" :label="$customer['expiry_label']" /></dd></div>
-                <div><dt class="text-xs text-zinc-400">Discount</dt><dd class="text-zinc-700 dark:text-zinc-300">৳{{ number_format($customer['discount']) }}</dd></div>
-                <div><dt class="text-xs text-zinc-400">IP Bill</dt><dd class="text-zinc-700 dark:text-zinc-300">৳{{ number_format($customer['ip_bill']) }}</dd></div>
-                <div><dt class="text-xs text-zinc-400">Extra Bill</dt><dd class="text-zinc-700 dark:text-zinc-300">৳{{ number_format($customer['extra_bill']) }}</dd></div>
-                <div><dt class="text-xs text-zinc-400">POP</dt><dd class="text-zinc-700 dark:text-zinc-300">{{ $customer['pop'] ?: '—' }}</dd></div>
-                <div><dt class="text-xs text-zinc-400">Contact</dt><dd class="text-zinc-700 dark:text-zinc-300">{{ $customer['contact'] ?: '—' }}</dd></div>
-                <div class="col-span-2"><dt class="text-xs text-zinc-400">Address</dt><dd class="text-zinc-700 dark:text-zinc-300">{{ $customer['address'] ?: '—' }}</dd></div>
+                <div><dt class="text-xs text-black dark:text-white">Package</dt><dd class="text-black dark:text-white">{{ $customer['package'] ?: '—' }}</dd></div>
+                <div><dt class="text-xs text-black dark:text-white">Monthly Bill</dt><dd class="text-black dark:text-white">৳{{ number_format($customer['bill_amount']) }}</dd></div>
+                <div><dt class="text-xs text-black dark:text-white">Current Expiry Date</dt><dd><x-expiry-date :date="$customer['expiry_date']" :label="$customer['expiry_label']" /></dd></div>
+                <div><dt class="text-xs text-black dark:text-white">Discount</dt><dd class="text-black dark:text-white">৳{{ number_format($customer['discount']) }}</dd></div>
+                <div><dt class="text-xs text-black dark:text-white">IP Bill</dt><dd class="text-black dark:text-white">৳{{ number_format($customer['ip_bill']) }}</dd></div>
+                <div><dt class="text-xs text-black dark:text-white">Extra Bill</dt><dd class="text-black dark:text-white">৳{{ number_format($customer['extra_bill']) }}</dd></div>
+                <div><dt class="text-xs text-black dark:text-white">POP</dt><dd class="text-black dark:text-white">{{ $customer['pop'] ?: '—' }}</dd></div>
+                <div><dt class="text-xs text-black dark:text-white">Contact</dt><dd class="text-black dark:text-white">{{ $customer['contact'] ?: '—' }}</dd></div>
+                <div class="col-span-2"><dt class="text-xs text-black dark:text-white">Address</dt><dd class="text-black dark:text-white">{{ $customer['address'] ?: '—' }}</dd></div>
             </dl>
 
             <div class="mt-4">
@@ -190,7 +190,7 @@
                     @else
                         <flux:checkbox wire:model="recharge" label="Recharge Customer" />
                     @endif
-                    <p class="mt-1 pl-7 text-xs text-zinc-500">
+                    <p class="mt-1 pl-7 text-xs text-black dark:text-white">
                         @if ($mandatoryRechargeCustomer)
                             Required by admin setting. Extend validity, enable if disabled, top up manager/POP, generate bill &amp; notify.
                         @else
@@ -202,7 +202,7 @@
                 <div class="mt-4" x-data="{ method: localStorage.getItem('mr_print_method') || 'auto', showSetup: false }">
                     <div x-on:change="localStorage.setItem('mr_print_receipt', $event.target.checked ? '1' : '0')">
                         <flux:checkbox wire:model="printReceipt" label="Print Receipt" />
-                        <p class="mt-1 pl-7 text-xs text-zinc-500">
+                        <p class="mt-1 pl-7 text-xs text-black dark:text-white">
                             Print a POS receipt after saving — Bluetooth printer on mobile, system POS printer on desktop.
                         </p>
                     </div>
@@ -210,7 +210,7 @@
                     <div x-show="$wire.printReceipt" style="display: none" class="mt-2 pl-7">
                         <button
                             type="button"
-                            class="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                            class="inline-flex items-center gap-1 text-xs text-black dark:text-white"
                             x-on:click="showSetup = ! showSetup"
                         >
                             <flux:icon name="cog-6-tooth" class="size-3.5" />
@@ -282,32 +282,32 @@
 
                 <dl class="divide-y divide-zinc-100 dark:divide-zinc-800">
                     <div class="flex items-center justify-between py-2.5">
-                        <dt class="text-sm text-zinc-500">Customer</dt>
-                        <dd class="text-sm font-medium text-zinc-900 dark:text-white">{{ $customer['name'] }} (#{{ $customer['id'] }})</dd>
+                        <dt class="text-sm text-black dark:text-white">Customer</dt>
+                        <dd class="text-sm font-medium text-black dark:text-white">{{ $customer['name'] }} (#{{ $customer['id'] }})</dd>
                     </div>
                     <div class="flex items-center justify-between py-2.5">
-                        <dt class="text-sm text-zinc-500">Amount</dt>
-                        <dd class="text-base font-bold text-zinc-900 dark:text-white">৳{{ number_format((float) $amount) }}</dd>
+                        <dt class="text-sm text-black dark:text-white">Amount</dt>
+                        <dd class="text-base font-bold text-black dark:text-white">৳{{ number_format((float) $amount) }}</dd>
                     </div>
                     <div class="flex items-center justify-between py-2.5">
-                        <dt class="text-sm text-zinc-500">Ledger</dt>
-                        <dd class="text-sm font-medium text-zinc-900 dark:text-white">
+                        <dt class="text-sm text-black dark:text-white">Ledger</dt>
+                        <dd class="text-sm font-medium text-black dark:text-white">
                             {{ collect($this->ledgers)->firstWhere('id', (int) $ledgerId)?->name ?? '—' }}
                         </dd>
                     </div>
                     <div class="flex items-center justify-between py-2.5">
-                        <dt class="text-sm text-zinc-500">Date</dt>
-                        <dd class="text-sm font-medium text-zinc-900 dark:text-white">
+                        <dt class="text-sm text-black dark:text-white">Date</dt>
+                        <dd class="text-sm font-medium text-black dark:text-white">
                             {{ \Illuminate\Support\Carbon::parse($receiptDate)->format('d M Y') }}
                         </dd>
                     </div>
                     <div class="flex items-center justify-between py-2.5">
-                        <dt class="text-sm text-zinc-500">Recharge customer</dt>
+                        <dt class="text-sm text-black dark:text-white">Recharge customer</dt>
                         <dd class="text-sm font-medium">
                             @if ($recharge)
                                 <span class="text-emerald-600 dark:text-emerald-400">Yes</span>
                             @else
-                                <span class="text-zinc-500">No</span>
+                                <span class="text-black dark:text-white">No</span>
                             @endif
                         </dd>
                     </div>
@@ -347,32 +347,32 @@
                             <flux:icon name="check-circle" class="size-8" />
                         </div>
                         <flux:heading size="lg" class="mt-3">Payment Recorded</flux:heading>
-                        <flux:text class="mt-1 text-sm text-zinc-500">{{ $result['message'] }}</flux:text>
+                        <flux:text class="mt-1 text-sm text-black dark:text-white">{{ $result['message'] }}</flux:text>
                     </div>
 
                     <dl class="mt-5 space-y-1.5 rounded-xl bg-zinc-50 p-4 text-sm dark:bg-zinc-800/50">
                         @if (! empty($result['data']['mrn']))
-                            <div class="flex justify-between"><dt class="text-zinc-500">Receipt #</dt><dd class="font-mono text-zinc-800 dark:text-zinc-200">{{ $result['data']['mrn'] }}</dd></div>
+                            <div class="flex justify-between"><dt class="text-black dark:text-white">Receipt #</dt><dd class="font-mono text-black dark:text-white">{{ $result['data']['mrn'] }}</dd></div>
                         @endif
                         @isset($result['data']['amount'])
-                            <div class="flex justify-between"><dt class="text-zinc-500">Amount</dt><dd class="font-medium text-zinc-800 dark:text-zinc-200">৳{{ number_format((float) $result['data']['amount']) }}</dd></div>
+                            <div class="flex justify-between"><dt class="text-black dark:text-white">Amount</dt><dd class="font-medium text-black dark:text-white">৳{{ number_format((float) $result['data']['amount']) }}</dd></div>
                         @endisset
                         @isset($result['data']['balance'])
-                            <div class="flex justify-between"><dt class="text-zinc-500">New balance</dt><dd class="font-medium text-zinc-800 dark:text-zinc-200">৳{{ number_format((float) $result['data']['balance']) }}</dd></div>
+                            <div class="flex justify-between"><dt class="text-black dark:text-white">New balance</dt><dd class="font-medium text-black dark:text-white">৳{{ number_format((float) $result['data']['balance']) }}</dd></div>
                         @endisset
                         @if (! empty($result['data']['recharged']))
-                            <div class="flex justify-between"><dt class="text-zinc-500">Recharged</dt><dd class="font-medium text-emerald-600 dark:text-emerald-400">{{ (int) $result['data']['recharge_months'] }} month(s)</dd></div>
+                            <div class="flex justify-between"><dt class="text-black dark:text-white">Recharged</dt><dd class="font-medium text-emerald-600 dark:text-emerald-400">{{ (int) $result['data']['recharge_months'] }} month(s)</dd></div>
                         @endif
                         @if (! empty($result['data']['enabled']))
-                            <div class="flex justify-between"><dt class="text-zinc-500">Connection</dt><dd class="font-medium text-emerald-600 dark:text-emerald-400">Re-enabled</dd></div>
+                            <div class="flex justify-between"><dt class="text-black dark:text-white">Connection</dt><dd class="font-medium text-emerald-600 dark:text-emerald-400">Re-enabled</dd></div>
                         @endif
                         @if (! empty($result['data']['sms_sent']))
-                            <div class="flex justify-between"><dt class="text-zinc-500">Notification</dt><dd class="font-medium text-zinc-800 dark:text-zinc-200">Sent</dd></div>
+                            <div class="flex justify-between"><dt class="text-black dark:text-white">Notification</dt><dd class="font-medium text-black dark:text-white">Sent</dd></div>
                         @endif
                     </dl>
 
                     @if (! empty($result['data']['messages']) && is_array($result['data']['messages']))
-                        <ul class="mt-3 space-y-1 text-xs text-zinc-500">
+                        <ul class="mt-3 space-y-1 text-xs text-black dark:text-white">
                             @foreach ($result['data']['messages'] as $msg)
                                 <li class="flex gap-1.5"><flux:icon name="information-circle" class="mt-0.5 size-3.5 shrink-0" />{{ $msg }}</li>
                             @endforeach
@@ -384,7 +384,7 @@
                             <flux:icon name="x-circle" class="size-8" />
                         </div>
                         <flux:heading size="lg" class="mt-3">Could Not Complete</flux:heading>
-                        <flux:text class="mt-1 text-sm text-zinc-500">{{ $result['message'] }}</flux:text>
+                        <flux:text class="mt-1 text-sm text-black dark:text-white">{{ $result['message'] }}</flux:text>
                     </div>
                 @endif
 
